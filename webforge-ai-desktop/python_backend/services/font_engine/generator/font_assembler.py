@@ -35,7 +35,6 @@ try:
     from fontTools import ttLib
     from fontTools.ttLib import TTFont
     from fontTools.ttLib.tables import _n_a_m_e as nameTable
-    from fontTools.pens.t2Pen import T2Pen
     from fontTools.pens.ttGlyphPen import TTGlyphPen
     FONTTOOLS_AVAILABLE = True
 except ImportError:
@@ -167,15 +166,22 @@ class FontAssembler:
 
         # ── head テーブル ──
         head = font["head"] = ttLib.newTable("head")
+        head.tableVersion = 1.0
+        head.fontRevision = 1.0
+        head.checkSumAdjustment = 0
         head.magicNumber = 0x5F0F3CF5
         head.flags = 0x000B
         head.unitsPerEm = fm.upm
-        head.created = head.modified = int(time.time()) - 2082844800
+        import calendar
+        mac_epoch_diff = calendar.timegm((1904, 1, 1, 0, 0, 0, 0, 0, 0))
+        now = int(time.time()) - mac_epoch_diff
+        head.created = head.modified = now
         head.macStyle = 0
         head.lowestRecPPEM = 8
         head.fontDirectionHint = 2
         head.glyphDataFormat = 0
-        head.xMin = head.yMin = head.xMax = head.yMax = 0  # 後で更新
+        head.indexToLocFormat = 0
+        head.xMin = head.yMin = head.xMax = head.yMax = 0
 
         # ── hhea テーブル ──
         hhea = font["hhea"] = ttLib.newTable("hhea")
@@ -401,9 +407,8 @@ class FontAssembler:
         """
         Contour リストを TTGlyphPen 経由で fontTools の Glyph に変換。
 
-        輪郭の種類:
-          オンカーブ点のみ → lineTo で直線輪郭
-          オフカーブ点混在 → qCurve で2次ベジェ輪郭
+        オフカーブ点は qCurveTo でまとめて処理する。
+        シンプルに全点を走査して on/off を振り分ける。
         """
         pen = TTGlyphPen(None)
 
@@ -413,6 +418,7 @@ class FontAssembler:
 
             pts = contour.points
             flags = contour.flags
+            n = len(pts)
             has_off_curve = any(not f for f in flags)
 
             if not has_off_curve:
@@ -422,33 +428,33 @@ class FontAssembler:
                     pen.lineTo((round(p.x), round(p.y)))
                 pen.closePath()
             else:
-                # オフカーブ混在 → 2次ベジェ（TrueType形式）
-                # 最初のオンカーブ点を探して moveTo
-                start_idx = next(
-                    (i for i, f in enumerate(flags) if f), 0
-                )
-                start = pts[start_idx]
-                pen.moveTo((round(start.x), round(start.y)))
+                # オフカーブ混在 → 逐次処理でセグメントを組み立てる
+                # 最初のオンカーブ点を先頭に回転して処理しやすくする
+                start_idx = next((i for i, f in enumerate(flags) if f), 0)
+                rot_pts = pts[start_idx:] + pts[:start_idx]
+                rot_flags = flags[start_idx:] + flags[:start_idx]
 
-                n = len(pts)
-                i = (start_idx + 1) % n
-                while i != start_idx:
-                    if flags[i]:
-                        # オンカーブ単体 → lineTo
-                        pen.lineTo((round(pts[i].x), round(pts[i].y)))
-                        i = (i + 1) % n
+                pen.moveTo((round(rot_pts[0].x), round(rot_pts[0].y)))
+
+                i = 1
+                while i < n:
+                    if rot_flags[i]:
+                        # オンカーブ単独 → lineTo
+                        pen.lineTo((round(rot_pts[i].x), round(rot_pts[i].y)))
+                        i += 1
                     else:
-                        # オフカーブ連続を集めて qCurve
-                        off_pts = []
-                        while not flags[i]:
-                            off_pts.append((round(pts[i].x), round(pts[i].y)))
-                            i = (i + 1) % n
-                            if i == start_idx:
-                                break
-                        on_pt = (round(pts[i].x), round(pts[i].y)) if i != start_idx \
-                            else (round(start.x), round(start.y))
-                        pen.qCurve(*off_pts, on_pt)
-                        i = (i + 1) % n
+                        # オフカーブ連続を収集してから qCurveTo
+                        off_pts: list[tuple[int, int]] = []
+                        while i < n and not rot_flags[i]:
+                            off_pts.append((round(rot_pts[i].x), round(rot_pts[i].y)))
+                            i += 1
+                        # 次のオンカーブ（輪郭末尾に達したら始点で閉じる）
+                        if i < n:
+                            on_pt = (round(rot_pts[i].x), round(rot_pts[i].y))
+                            i += 1
+                        else:
+                            on_pt = (round(rot_pts[0].x), round(rot_pts[0].y))
+                        pen.qCurveTo(*off_pts, on_pt)
 
                 pen.closePath()
 
