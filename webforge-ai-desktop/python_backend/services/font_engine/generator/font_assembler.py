@@ -462,16 +462,30 @@ class FontAssembler:
 
     def _build_kern_table(self, font: "TTFont") -> None:
         """kern テーブルを追加する（オプション）。"""
-        kern_dict = self.kerning.export_for_fonttools()
-        if not kern_dict:
+        flat_pairs = self.kerning.export_flat_pairs()
+        if not flat_pairs:
+            return
+
+        # フォントに存在するグリフ名のセット
+        glyph_names = set(font.getGlyphOrder())
+
+        # 両グリフが存在するペアのみ含める
+        valid_pairs = {
+            (pair.left, pair.right): pair.value
+            for pair in flat_pairs
+            if pair.left in glyph_names and pair.right in glyph_names
+        }
+        if not valid_pairs:
             return
 
         kern = font["kern"] = ttLib.newTable("kern")
         kern.version = 0
 
-        subtable = ttLib.tables._k_e_r_n.KernTable_format_0(kern)
-        subtable.kernTable = kern_dict
-        subtable.coverage = 0x0001
+        subtable = ttLib.tables._k_e_r_n.KernTable_format_0()
+        subtable.version    = 0
+        subtable.coverage   = 0x0001
+        subtable.tupleIndex = 0
+        subtable.kernTable  = valid_pairs
         kern.kernTables = [subtable]
 
     # ──────────────────────────────
