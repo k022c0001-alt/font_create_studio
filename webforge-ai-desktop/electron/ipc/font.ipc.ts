@@ -143,15 +143,7 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetchWithTimeout(`${FONT_API_BASE_URL}${path}`, init);
 
   if (!response.ok) {
-    let detail = response.statusText;
-    try {
-      const payload = (await response.json()) as { detail?: string };
-      if (payload?.detail) detail = payload.detail;
-    } catch {
-      const text = await response.text();
-      if (text) detail = text;
-    }
-    throw new Error(`HTTP ${response.status}: ${detail}`);
+    throw await toHttpError(response);
   }
 
   return (await response.json()) as T;
@@ -179,6 +171,22 @@ function buildPreviewPath(request: PreviewRequest): string {
   return query ? `/fonts/preview/${font_id}?${query}` : `/fonts/preview/${font_id}`;
 }
 
+async function toHttpError(response: Response): Promise<Error> {
+  let detail = response.statusText;
+  const bodyText = await response.text();
+
+  if (bodyText) {
+    try {
+      const payload = JSON.parse(bodyText) as { detail?: string };
+      detail = payload?.detail || bodyText;
+    } catch {
+      detail = bodyText;
+    }
+  }
+
+  return new Error(`HTTP ${response.status}: ${detail}`);
+}
+
 export function registerFontIpcHandlers(): void {
   ipcMain.removeHandler(IPC_CHANNELS.generate);
   ipcMain.handle(IPC_CHANNELS.generate, async (_event, request: GenerateFontRequest) =>
@@ -202,15 +210,7 @@ export function registerFontIpcHandlers(): void {
     });
 
     if (!response.ok) {
-      let detail = response.statusText;
-      try {
-        const payload = (await response.json()) as { detail?: string };
-        if (payload?.detail) detail = payload.detail;
-      } catch {
-        const text = await response.text();
-        if (text) detail = text;
-      }
-      throw new Error(`HTTP ${response.status}: ${detail}`);
+      throw await toHttpError(response);
     }
 
     return response.blob();
