@@ -151,10 +151,11 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
         {FIELD_CONFIGS.map((field) => {
           const valueForField = currentMetrics[field.key] ?? field.min;
           const rangeInputId = `metrics-${field.key}-range`;
+          const labelId = `metrics-${field.key}-label`;
 
           return (
             <div key={field.key} className="space-y-2">
-              <label htmlFor={rangeInputId} className="block text-sm font-medium text-slate-700">
+              <label id={labelId} htmlFor={rangeInputId} className="block text-sm font-medium text-slate-700">
                 {field.label}
               </label>
               <div className="grid grid-cols-[1fr_120px] items-center gap-3">
@@ -166,7 +167,7 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
                   step={field.step ?? 1}
                   value={valueForField}
                   disabled={usePreset}
-                  aria-label={`${field.label} slider`}
+                  aria-labelledby={labelId}
                   onChange={(event) => updateMetric(field.key, event.target.value, field.min, field.max)}
                 />
                 <input
@@ -177,6 +178,7 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
                   step={field.step ?? 1}
                   value={valueForField}
                   disabled={usePreset}
+                  aria-labelledby={labelId}
                   className="w-full rounded-md border border-slate-300 px-2 py-1 text-right"
                   onChange={(event) => updateMetric(field.key, event.target.value, field.min, field.max)}
                 />
