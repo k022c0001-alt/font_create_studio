@@ -89,6 +89,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
             className="h-4 w-4"
             checked={strokeEnabled}
             disabled={!enabled}
+            aria-label="ストローク有効化"
             onChange={(event) => handleToggle(event.target.checked)}
           />
           ストローク有効化
@@ -117,6 +118,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
               step={1}
               value={currentStroke.weight}
               disabled={controlsDisabled}
+              aria-label="Weight numeric input"
               className="w-full rounded-md border border-slate-300 px-2 py-1 text-right"
               onChange={(event) => updateWeight(event.target.value)}
             />
