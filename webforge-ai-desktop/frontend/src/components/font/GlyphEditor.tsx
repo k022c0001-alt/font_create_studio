@@ -20,9 +20,14 @@ const DEFAULT_GLYPH: GlyphRequest = {
   advance_width: 600,
   lsb: 0,
 };
+const MAX_UNICODE_CODEPOINT = 0x10ffff;
 
 function clampMin(value: number, min: number): number {
   return Number.isFinite(value) ? Math.max(min, value) : min;
+}
+
+function clampRange(value: number, min: number, max: number): number {
+  return Math.min(max, clampMin(value, min));
 }
 
 function parseOptionalNumber(rawValue: string): number | undefined {
@@ -32,6 +37,11 @@ function parseOptionalNumber(rawValue: string): number | undefined {
 
   const parsed = Number(rawValue);
   return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function formatUnicode(codepoint: number): string {
+  const hex = codepoint.toString(16).toUpperCase();
+  return `U+${hex.padStart(Math.max(4, hex.length), '0')}`;
 }
 
 export function GlyphEditor({
@@ -78,6 +88,10 @@ export function GlyphEditor({
   const advanceWidth = clampMin(selectedGlyph?.advance_width ?? 600, 0);
   const leftBearing = selectedGlyph?.lsb ?? 0;
   const viewBoxWidth = Math.max(220, advanceWidth + Math.max(leftBearing, 0) + 80);
+  const primaryGuideStrokeWidth = Math.max(2, viewBoxHeight * 0.008);
+  const secondaryGuideStrokeWidth = Math.max(1, viewBoxHeight * 0.005);
+  const advanceGuideStrokeWidth = Math.max(1, viewBoxHeight * 0.004);
+  const glyphTransform = `translate(${leftBearing} ${ascender}) scale(1 -1)`;
 
   const updateSelectedGlyph = (patch: Partial<GlyphRequest>): void => {
     if (!selectedGlyph) {
@@ -129,6 +143,7 @@ export function GlyphEditor({
         <h2 className="text-lg font-semibold text-slate-800">グリフエディタ</h2>
         <button
           type="button"
+          aria-label="Add glyph"
           className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
           onClick={handleAddGlyph}
         >
@@ -158,7 +173,7 @@ export function GlyphEditor({
                 >
                   <div className="font-medium">{glyph.name || `glyph-${index + 1}`}</div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {glyph.unicode !== undefined ? `U+${glyph.unicode.toString(16).toUpperCase()}` : 'Unicode 未設定'}
+                    {glyph.unicode !== undefined ? formatUnicode(glyph.unicode) : 'Unicode 未設定'}
                   </div>
                 </button>
               ))
@@ -168,6 +183,7 @@ export function GlyphEditor({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
+              aria-label="Move glyph up"
               className="rounded-md border border-slate-300 px-2 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={selectedIndex === 0 || glyphs.length < 2}
               onClick={() => moveGlyph(-1)}
@@ -176,6 +192,7 @@ export function GlyphEditor({
             </button>
             <button
               type="button"
+              aria-label="Move glyph down"
               className="rounded-md border border-slate-300 px-2 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={selectedIndex >= glyphs.length - 1 || glyphs.length < 2}
               onClick={() => moveGlyph(1)}
@@ -191,13 +208,42 @@ export function GlyphEditor({
               <h3 className="mb-3 text-sm font-semibold text-slate-800">SVG プレビュー</h3>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
                 <svg viewBox={`0 ${descender} ${viewBoxWidth} ${viewBoxHeight}`} className="h-72 w-full">
-                  <line x1={0} y1={ascender} x2={viewBoxWidth} y2={ascender} stroke="#94a3b8" strokeWidth={8} />
-                  <line x1={0} y1={0} x2={viewBoxWidth} y2={0} stroke="#cbd5e1" strokeWidth={5} />
-                  <line x1={0} y1={descender} x2={viewBoxWidth} y2={descender} stroke="#cbd5e1" strokeWidth={5} />
-                  <line x1={advanceWidth} y1={0} x2={advanceWidth} y2={ascender} stroke="#2563eb" strokeDasharray="20 14" strokeWidth={4} />
+                  <line
+                    x1={0}
+                    y1={ascender}
+                    x2={viewBoxWidth}
+                    y2={ascender}
+                    stroke="#94a3b8"
+                    strokeWidth={primaryGuideStrokeWidth}
+                  />
+                  <line
+                    x1={0}
+                    y1={0}
+                    x2={viewBoxWidth}
+                    y2={0}
+                    stroke="#cbd5e1"
+                    strokeWidth={secondaryGuideStrokeWidth}
+                  />
+                  <line
+                    x1={0}
+                    y1={descender}
+                    x2={viewBoxWidth}
+                    y2={descender}
+                    stroke="#cbd5e1"
+                    strokeWidth={secondaryGuideStrokeWidth}
+                  />
+                  <line
+                    x1={advanceWidth}
+                    y1={descender}
+                    x2={advanceWidth}
+                    y2={ascender}
+                    stroke="#2563eb"
+                    strokeDasharray="20 14"
+                    strokeWidth={advanceGuideStrokeWidth}
+                  />
 
                   {selectedGlyph?.shape ? (
-                    <g transform={`translate(${leftBearing} ${ascender}) scale(1 -1)`}>
+                    <g transform={glyphTransform}>
                       <path
                         d={selectedGlyph.shape}
                         fill={selectedGlyph.stroke ? 'none' : '#0f172a'}
@@ -247,9 +293,16 @@ export function GlyphEditor({
                     <input
                       type="number"
                       min={0}
+                      max={MAX_UNICODE_CODEPOINT}
                       value={selectedGlyph.unicode ?? ''}
                       className="w-full rounded-md border border-slate-300 px-3 py-2"
-                      onChange={(event) => updateSelectedGlyph({ unicode: parseOptionalNumber(event.target.value) })}
+                      onChange={(event) => {
+                        const nextUnicode = parseOptionalNumber(event.target.value);
+                        updateSelectedGlyph({
+                          unicode:
+                            nextUnicode === undefined ? undefined : clampRange(nextUnicode, 0, MAX_UNICODE_CODEPOINT),
+                        });
+                      }}
                     />
                   </label>
 
@@ -270,9 +323,10 @@ export function GlyphEditor({
                       min={0}
                       value={selectedGlyph.advance_width ?? 0}
                       className="w-full rounded-md border border-slate-300 px-3 py-2"
-                      onChange={(event) =>
-                        updateSelectedGlyph({ advance_width: clampMin(parseOptionalNumber(event.target.value) ?? 0, 0) })
-                      }
+                      onChange={(event) => {
+                        const nextAdvanceWidth = parseOptionalNumber(event.target.value);
+                        updateSelectedGlyph({ advance_width: nextAdvanceWidth === undefined ? 0 : clampMin(nextAdvanceWidth, 0) });
+                      }}
                     />
                   </label>
 
