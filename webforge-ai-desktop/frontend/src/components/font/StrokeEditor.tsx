@@ -26,6 +26,8 @@ const JOIN_STYLES: Array<{ value: JoinStyle; label: string }> = [
   { value: 'bevel', label: 'Bevel' },
 ];
 
+const PREVIEW_STROKE_SCALE = 8;
+
 function clampWeight(weight: number): number {
   return Math.max(0, Math.min(1000, weight));
 }
@@ -43,7 +45,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
   );
 
   const controlsDisabled = !enabled || !strokeEnabled;
-  const previewStrokeWidth = Math.max(2, currentStroke.weight / 8);
+  const previewStrokeWidth = Math.max(2, currentStroke.weight / PREVIEW_STROKE_SCALE);
 
   const handleToggle = (nextEnabled: boolean): void => {
     if (!enabled) {
@@ -95,7 +97,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
         </label>
 
         <div className="space-y-2">
-          <label htmlFor="stroke-weight-range" className="block text-sm font-medium text-slate-700">
+          <label id="stroke-weight-label" htmlFor="stroke-weight-range" className="block text-sm font-medium text-slate-700">
             Weight (0 - 1000)
           </label>
           <div className="grid grid-cols-[1fr_120px] items-center gap-3">
@@ -107,6 +109,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
               step={1}
               value={currentStroke.weight}
               disabled={controlsDisabled}
+              aria-labelledby="stroke-weight-label"
               onChange={(event) => updateWeight(event.target.value)}
             />
             <input
@@ -117,7 +120,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
               step={1}
               value={currentStroke.weight}
               disabled={controlsDisabled}
-              aria-label="Weight 数値入力"
+              aria-labelledby="stroke-weight-label"
               className="w-full rounded-md border border-slate-300 px-2 py-1 text-right"
               onChange={(event) => updateWeight(event.target.value)}
             />
