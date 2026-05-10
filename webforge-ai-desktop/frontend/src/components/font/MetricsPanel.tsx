@@ -52,6 +52,8 @@ function clamp(value: number, min: number, max: number): number {
 
 export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset }: MetricsPanelProps) {
   const [presetType, setPresetType] = useState<PresetType>('latin');
+  const presetCheckboxId = 'metrics-use-preset';
+  const presetLegendId = 'metrics-preset-legend';
 
   const currentMetrics = useMemo<Required<FontMetricsInput>>(
     () => ({
@@ -108,8 +110,9 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
   return (
     <div className="grid grid-cols-1 gap-6 rounded-lg border border-slate-200 p-4 md:grid-cols-2">
       <div className="space-y-4">
-        <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <label htmlFor={presetCheckboxId} className="flex items-center gap-2 text-sm font-medium text-slate-700">
           <input
+            id={presetCheckboxId}
             type="checkbox"
             className="h-4 w-4"
             checked={usePreset}
@@ -118,8 +121,10 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
           プリセット使用
         </label>
 
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-semibold text-slate-800">プリセット選択</legend>
+        <fieldset className="space-y-3" aria-labelledby={presetLegendId}>
+          <legend id={presetLegendId} className="text-sm font-semibold text-slate-800">
+            プリセット選択
+          </legend>
           {(
             [
               { value: 'latin', label: 'Latin プリセット' },
@@ -144,21 +149,28 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
       <div className="space-y-4">
         {FIELD_CONFIGS.map((field) => {
           const valueForField = currentMetrics[field.key] ?? field.min;
+          const numberInputId = `metrics-${field.key}-number`;
+          const rangeInputId = `metrics-${field.key}-range`;
 
           return (
             <div key={field.key} className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">{field.label}</label>
+              <label htmlFor={numberInputId} className="block text-sm font-medium text-slate-700">
+                {field.label}
+              </label>
               <div className="grid grid-cols-[1fr_120px] items-center gap-3">
                 <input
+                  id={rangeInputId}
                   type="range"
                   min={field.min}
                   max={field.max}
                   step={field.step ?? 1}
                   value={valueForField}
                   disabled={usePreset}
+                  aria-label={`${field.label} slider`}
                   onChange={(event) => updateMetric(field.key, event.target.value, field.min, field.max)}
                 />
                 <input
+                  id={numberInputId}
                   type="number"
                   min={field.min}
                   max={field.max}
