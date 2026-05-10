@@ -26,7 +26,16 @@ const JOIN_STYLES: Array<{ value: JoinStyle; label: string }> = [
   { value: 'bevel', label: 'Bevel' },
 ];
 
+const PREVIEW_VIEWBOX_WIDTH = 220;
+const PREVIEW_VIEWBOX_HEIGHT = 120;
+const PREVIEW_GUIDE_START_X = 30;
+const PREVIEW_GUIDE_END_X = 190;
+const PREVIEW_GUIDE_TOP_Y = 20;
+const PREVIEW_GUIDE_BOTTOM_Y = 80;
+const PREVIEW_LINE_Y = 50;
+const PREVIEW_JOIN_POINTS = '40,100 110,70 180,100';
 const PREVIEW_STROKE_SCALE = 8;
+const MIN_PREVIEW_STROKE_WIDTH = 2;
 
 function clampWeight(weight: number): number {
   return Math.max(0, Math.min(1000, weight));
@@ -45,7 +54,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
   );
 
   const controlsDisabled = !enabled || !strokeEnabled;
-  const previewStrokeWidth = Math.max(2, currentStroke.weight / PREVIEW_STROKE_SCALE);
+  const previewStrokeWidth = Math.max(MIN_PREVIEW_STROKE_WIDTH, currentStroke.weight / PREVIEW_STROKE_SCALE);
 
   const handleToggle = (nextEnabled: boolean): void => {
     if (!enabled) {
@@ -169,15 +178,29 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-slate-800">プレビュー</h3>
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <svg viewBox="0 0 220 120" className="h-44 w-full">
-            <line x1={30} y1={20} x2={30} y2={80} stroke="#cbd5e1" strokeWidth={1} />
-            <line x1={190} y1={20} x2={190} y2={80} stroke="#cbd5e1" strokeWidth={1} />
+          <svg viewBox={`0 0 ${PREVIEW_VIEWBOX_WIDTH} ${PREVIEW_VIEWBOX_HEIGHT}`} className="h-44 w-full">
+            <line
+              x1={PREVIEW_GUIDE_START_X}
+              y1={PREVIEW_GUIDE_TOP_Y}
+              x2={PREVIEW_GUIDE_START_X}
+              y2={PREVIEW_GUIDE_BOTTOM_Y}
+              stroke="#cbd5e1"
+              strokeWidth={1}
+            />
+            <line
+              x1={PREVIEW_GUIDE_END_X}
+              y1={PREVIEW_GUIDE_TOP_Y}
+              x2={PREVIEW_GUIDE_END_X}
+              y2={PREVIEW_GUIDE_BOTTOM_Y}
+              stroke="#cbd5e1"
+              strokeWidth={1}
+            />
 
             <line
-              x1={30}
-              y1={50}
-              x2={190}
-              y2={50}
+              x1={PREVIEW_GUIDE_START_X}
+              y1={PREVIEW_LINE_Y}
+              x2={PREVIEW_GUIDE_END_X}
+              y2={PREVIEW_LINE_Y}
               stroke="#1d4ed8"
               strokeWidth={previewStrokeWidth}
               strokeLinecap={currentStroke.cap_style}
@@ -185,7 +208,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
             />
 
             <polyline
-              points="40,100 110,70 180,100"
+              points={PREVIEW_JOIN_POINTS}
               fill="none"
               stroke="#0f766e"
               strokeWidth={previewStrokeWidth}
