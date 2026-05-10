@@ -132,16 +132,17 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
               { value: 'custom', label: 'Custom（カスタム）' },
             ] as const
           ).map((preset) => (
-            <label key={preset.value} className="flex items-center gap-2 text-sm text-slate-700">
+            <div key={preset.value} className="flex items-center gap-2 text-sm text-slate-700">
               <input
+                id={`metrics-preset-${preset.value}`}
                 type="radio"
                 name="metrics-preset"
                 className="h-4 w-4"
                 checked={presetType === preset.value}
                 onChange={() => applyPreset(preset.value)}
               />
-              {preset.label}
-            </label>
+              <label htmlFor={`metrics-preset-${preset.value}`}>{preset.label}</label>
+            </div>
           ))}
         </fieldset>
       </div>
@@ -149,12 +150,11 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
       <div className="space-y-4">
         {FIELD_CONFIGS.map((field) => {
           const valueForField = currentMetrics[field.key] ?? field.min;
-          const numberInputId = `metrics-${field.key}-number`;
           const rangeInputId = `metrics-${field.key}-range`;
 
           return (
             <div key={field.key} className="space-y-2">
-              <label htmlFor={numberInputId} className="block text-sm font-medium text-slate-700">
+              <label htmlFor={rangeInputId} className="block text-sm font-medium text-slate-700">
                 {field.label}
               </label>
               <div className="grid grid-cols-[1fr_120px] items-center gap-3">
@@ -170,7 +170,7 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
                   onChange={(event) => updateMetric(field.key, event.target.value, field.min, field.max)}
                 />
                 <input
-                  id={numberInputId}
+                  id={`metrics-${field.key}-number`}
                   type="number"
                   min={field.min}
                   max={field.max}
