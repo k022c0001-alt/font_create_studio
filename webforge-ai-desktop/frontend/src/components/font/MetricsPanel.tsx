@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { FontMetricsInput } from '../../../../shared/types/font';
 
@@ -51,9 +51,20 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset }: MetricsPanelProps) {
-  const [presetType, setPresetType] = useState<PresetType>('latin');
+  const [presetType, setPresetType] = useState<PresetType>(usePreset ? 'latin' : 'custom');
   const presetCheckboxId = 'metrics-use-preset';
   const presetLegendId = 'metrics-preset-legend';
+
+  useEffect(() => {
+    if (!usePreset) {
+      setPresetType('custom');
+      return;
+    }
+
+    if (presetType === 'custom') {
+      setPresetType('latin');
+    }
+  }, [presetType, usePreset]);
 
   const currentMetrics = useMemo<Required<FontMetricsInput>>(
     () => ({
@@ -167,7 +178,6 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
                   step={field.step ?? 1}
                   value={valueForField}
                   disabled={usePreset}
-                  aria-labelledby={labelId}
                   onChange={(event) => updateMetric(field.key, event.target.value, field.min, field.max)}
                 />
                 <input
@@ -178,7 +188,7 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
                   step={field.step ?? 1}
                   value={valueForField}
                   disabled={usePreset}
-                  aria-labelledby={labelId}
+                  aria-label={`${field.label} value`}
                   className="w-full rounded-md border border-slate-300 px-2 py-1 text-right"
                   onChange={(event) => updateMetric(field.key, event.target.value, field.min, field.max)}
                 />
