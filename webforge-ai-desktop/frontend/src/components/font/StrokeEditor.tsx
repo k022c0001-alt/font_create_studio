@@ -107,7 +107,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
 
         <div className="space-y-2">
           <label id="stroke-weight-label" htmlFor="stroke-weight-range" className="block text-sm font-medium text-slate-700">
-            Weight (0 - 1000)
+            線の太さ (0 - 1000)
           </label>
           <div className="grid grid-cols-[1fr_120px] items-center gap-3">
             <input
@@ -138,7 +138,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
 
         <div className="space-y-2">
           <label htmlFor="stroke-cap-style" className="block text-sm font-medium text-slate-700">
-            Cap Style
+            端の形状 (Cap Style)
           </label>
           <select
             id="stroke-cap-style"
@@ -157,7 +157,7 @@ export function StrokeEditor({ value, onChange, enabled }: StrokeEditorProps) {
 
         <div className="space-y-2">
           <label htmlFor="stroke-join-style" className="block text-sm font-medium text-slate-700">
-            Join Style
+            結合形状 (Join Style)
           </label>
           <select
             id="stroke-join-style"
