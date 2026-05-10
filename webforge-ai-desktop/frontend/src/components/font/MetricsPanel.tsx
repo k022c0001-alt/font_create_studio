@@ -160,7 +160,7 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
 
       <div className="space-y-4">
         {FIELD_CONFIGS.map((field) => {
-          const valueForField = currentMetrics[field.key] ?? field.min;
+          const valueForField = currentMetrics[field.key];
           const rangeInputId = `metrics-${field.key}-range`;
           const labelId = `metrics-${field.key}-label`;
 
@@ -188,7 +188,7 @@ export function MetricsPanel({ value, usePreset, onChangeMetrics, onTogglePreset
                   step={field.step ?? 1}
                   value={valueForField}
                   disabled={usePreset}
-                  aria-label={`${field.label} value`}
+                  aria-labelledby={labelId}
                   className="w-full rounded-md border border-slate-300 px-2 py-1 text-right"
                   onChange={(event) => updateMetric(field.key, event.target.value, field.min, field.max)}
                 />
