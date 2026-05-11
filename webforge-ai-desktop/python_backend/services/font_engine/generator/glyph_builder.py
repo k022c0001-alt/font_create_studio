@@ -1,218 +1,131 @@
 """
-glyph_modifier.py
-─────────────────
-既存グリフのパスを編集・加工する。
-
-【なぜ generator 層に置くか】
-  パス操作（変形・合成・分解）はグリフ設計と同じレイヤー。
-  pipeline/ は「フォントファイル全体を変換」するが、
-  ここは「1グリフの形を変える」設計領域。
-  → generator/ に寄せることで責務が明確になる。
-
-主な用途:
-  - 既存 TTF から取り込んだグリフを調整する
-  - GlyphBuilder で作ったグリフに後処理を加える
-  - アウトラインの簡略化・ノーマライズ
+glyph_builder.py
+────────────────
+グリフをプログラムで組み立てるための最小ビルダー。
 """
 
 from __future__ import annotations
-from typing import Callable
-from .curve_engine import Contour, Point
-from .glyph_builder import GlyphData, GlyphMetrics
+
+from dataclasses import dataclass, field
+from typing import Optional
+
+from .curve_engine import Contour, CurveEngine
+from .metrics_engine import FontMetrics, GlyphMetrics
+from .stroke_engine import CapStyle, JoinStyle, StrokeEngine, StrokePath
 
 
-class GlyphModifier:
-    """
-    GlyphData を受け取り、変形済みの GlyphData を返す変換器。
-    イミュータブルに設計（元データを壊さない）。
+@dataclass
+class GlyphData:
+    name: str
+    unicode: Optional[int]
+    contours: list[Contour] = field(default_factory=list)
+    metrics: GlyphMetrics = field(default_factory=GlyphMetrics)
 
-    使い方:
-        mod = GlyphModifier(glyph_data)
-        result = (mod
-            .translate(dx=50, dy=0)
-            .scale_uniform(1.1)
-            .remove_overlap()
-            .build())
-    """
+    @property
+    def is_empty(self) -> bool:
+        return len(self.contours) == 0
 
-    def __init__(self, glyph: GlyphData) -> None:
-        # ディープコピーして元データを保護
-        self._name = glyph.name
-        self._unicode = glyph.unicode
-        self._metrics = GlyphMetrics(
-            advance_width=glyph.metrics.advance_width,
-            lsb=glyph.metrics.lsb,
-        )
-        self._contours: list[Contour] = [
-            _copy_contour(c) for c in glyph.contours
-        ]
 
-    # ──────────────────────────────
-    # 幾何変換
-    # ──────────────────────────────
+class GlyphBuilder:
+    def __init__(
+        self,
+        name: str,
+        unicode: Optional[int] = None,
+        font_metrics: Optional[FontMetrics] = None,
+    ) -> None:
+        self._name = name
+        self._unicode = unicode
+        self._fm = font_metrics or FontMetrics.preset_latin()
+        self._metrics = GlyphMetrics(advance_width=round(self._fm.cap_height * 0.7), lsb=40)
+        self._contours: list[Contour] = []
+        self._stroke_weight = 80.0
+        self._cap = CapStyle.ROUND
+        self._join = JoinStyle.ROUND
 
-    def translate(self, dx: float, dy: float) -> "GlyphModifier":
-        """全輪郭を (dx, dy) だけ平行移動。"""
-        for c in self._contours:
-            c.points = [Point(p.x + dx, p.y + dy) for p in c.points]
-        return self
-
-    def scale(self, sx: float, sy: float, cx: float = 0, cy: float = 0) -> "GlyphModifier":
-        """
-        (cx, cy) を中心にスケール。
-        デフォルト原点 (0,0) = ベースライン左端。
-        """
-        for c in self._contours:
-            c.points = [
-                Point((p.x - cx) * sx + cx, (p.y - cy) * sy + cy)
-                for p in c.points
-            ]
-        # advance_width もスケール
-        self._metrics.advance_width = round(self._metrics.advance_width * sx)
-        self._metrics.lsb = round(self._metrics.lsb * sx)
-        return self
-
-    def scale_uniform(self, factor: float) -> "GlyphModifier":
-        return self.scale(factor, factor)
-
-    def rotate(self, angle_deg: float, cx: float = 0, cy: float = 0) -> "GlyphModifier":
-        """
-        (cx, cy) を中心に時計回り回転（degree）。
-        注: 回転後は advance_width の更新が必要な場合がある。
-        """
-        import math
-        rad = math.radians(angle_deg)
-        cos_a, sin_a = math.cos(rad), math.sin(rad)
-        for c in self._contours:
-            new_pts = []
-            for p in c.points:
-                rx = p.x - cx
-                ry = p.y - cy
-                new_pts.append(Point(
-                    rx * cos_a - ry * sin_a + cx,
-                    rx * sin_a + ry * cos_a + cy,
-                ))
-            c.points = new_pts
-        return self
-
-    def flip_horizontal(self) -> "GlyphModifier":
-        """左右反転（advance_width 内で反転）。"""
-        aw = self._metrics.advance_width
-        for c in self._contours:
-            c.points = [Point(aw - p.x, p.y) for p in c.points]
-            c.points.reverse()
-            c.flags.reverse()
-        return self
-
-    def flip_vertical(self, axis_y: float | None = None) -> "GlyphModifier":
-        """
-        上下反転。axis_y を省略するとグリフの垂直中心で反転。
-        """
-        if axis_y is None:
-            all_y = [p.y for c in self._contours for p in c.points]
-            axis_y = (max(all_y) + min(all_y)) / 2 if all_y else 0
-        for c in self._contours:
-            c.points = [Point(p.x, 2 * axis_y - p.y) for p in c.points]
-            c.points.reverse()
-            c.flags.reverse()
-        return self
-
-    # ──────────────────────────────
-    # アウトライン処理
-    # ──────────────────────────────
-
-    def remove_short_contours(self, min_points: int = 3) -> "GlyphModifier":
-        """
-        点数が少なすぎる（壊れた）輪郭を除去する。
-        最低 3 点ないと有効な輪郭にならない。
-        """
-        self._contours = [c for c in self._contours if len(c.points) >= min_points]
-        return self
-
-    def apply_to_each_contour(
-        self, func: Callable[[Contour], Contour]
-    ) -> "GlyphModifier":
-        """
-        各輪郭に任意の変換関数を適用する。
-        カスタム処理を差し込む拡張ポイント。
-
-        例:
-            def snap_to_grid(c):
-                c.points = [Point(round(p.x/4)*4, round(p.y/4)*4) for p in c.points]
-                return c
-            mod.apply_to_each_contour(snap_to_grid)
-        """
-        self._contours = [func(c) for c in self._contours]
-        return self
-
-    def snap_to_grid(self, grid: int = 4) -> "GlyphModifier":
-        """
-        全点座標をグリッドにスナップ（ヒンティング改善）。
-        grid=4 → 4 em ユニット単位に丸める。
-        """
-        def snap(c: Contour) -> Contour:
-            c.points = [
-                Point(round(p.x / grid) * grid, round(p.y / grid) * grid)
-                for p in c.points
-            ]
-            return c
-        return self.apply_to_each_contour(snap)
-
-    def round_coordinates(self) -> "GlyphModifier":
-        """全座標を整数に丸める（TTF は整数座標のみ）。"""
-        def rnd(c: Contour) -> Contour:
-            c.points = [Point(round(p.x), round(p.y)) for p in c.points]
-            return c
-        return self.apply_to_each_contour(rnd)
-
-    # ──────────────────────────────
-    # メトリクス操作
-    # ──────────────────────────────
-
-    def set_advance(self, width: int) -> "GlyphModifier":
+    def set_advance(self, width: int, lsb: int = 0) -> "GlyphBuilder":
         self._metrics.advance_width = width
+        self._metrics.lsb = lsb
         return self
 
-    def add_sidebearing(self, left: int = 0, right: int = 0) -> "GlyphModifier":
-        """
-        サイドベアリングを追加する。
-        left > 0 → グリフ全体を右に移動し、advance を拡げる。
-        right > 0 → advance だけ拡げる。
-        """
-        if left:
-            self.translate(left, 0)
-            self._metrics.lsb += left
-            self._metrics.advance_width += left
-        if right:
-            self._metrics.advance_width += right
+    def set_advance_auto(self) -> "GlyphBuilder":
+        if self._name == ".space":
+            aw = round(self._fm.upm * 0.25)
+            lsb = 0
+        elif self._name in {"I", "l", "i"}:
+            aw = round(self._fm.cap_height * 0.42)
+            lsb = round(aw * 0.15)
+        else:
+            aw = round(self._fm.cap_height * 0.78)
+            lsb = round(aw * 0.10)
+        return self.set_advance(aw, lsb)
+
+    def draw_rect(self, x: float, y: float, w: float, h: float) -> "GlyphBuilder":
+        self._contours.append(CurveEngine.rectangle(x, y, w, h))
         return self
 
-    # ──────────────────────────────
-    # 完成
-    # ──────────────────────────────
+    def draw_circle(self, cx: float, cy: float, r: float) -> "GlyphBuilder":
+        self._contours.append(CurveEngine.circle(cx, cy, r))
+        return self
+
+    def stroke_weight(self, weight: float) -> "GlyphBuilder":
+        self._stroke_weight = weight
+        return self
+
+    def stroke_style(self, cap: CapStyle = CapStyle.ROUND, join: JoinStyle = JoinStyle.ROUND) -> "GlyphBuilder":
+        self._cap = cap
+        self._join = join
+        return self
+
+    def draw_stroke(self, path: StrokePath) -> "GlyphBuilder":
+        engine = StrokeEngine(weight=self._stroke_weight, cap=self._cap, join=self._join)
+        contour = engine.expand_to_single_contour(path)
+        self._contours.append(contour)
+        return self
 
     def build(self) -> GlyphData:
-        """変換済みの GlyphData を返す。"""
         return GlyphData(
             name=self._name,
             unicode=self._unicode,
-            contours=self._contours,
+            contours=list(self._contours),
             metrics=self._metrics,
         )
 
-    def build_as(self, name: str, unicode: int | None = None) -> GlyphData:
-        """別名・別コードポイントで出力（派生グリフ生成に使う）。"""
-        self._name = name
-        self._unicode = unicode
-        return self.build()
+    @classmethod
+    def space(cls, font_metrics: Optional[FontMetrics] = None) -> GlyphData:
+        fm = font_metrics or FontMetrics.preset_latin()
+        return cls(name=".space", unicode=0x20, font_metrics=fm).set_advance(round(fm.upm * 0.25), 0).build()
 
+    @classmethod
+    def period(cls, font_metrics: Optional[FontMetrics] = None) -> GlyphData:
+        fm = font_metrics or FontMetrics.preset_latin()
+        b = cls(name="period", unicode=0x2E, font_metrics=fm).set_advance(round(fm.cap_height * 0.42), 30)
+        r = max(22, round(fm.x_height * 0.10))
+        b.draw_circle(b._metrics.advance_width // 2, r + 10, r)
+        return b.build()
 
-# ──────────────────────────────────────────────
-# ユーティリティ
-# ──────────────────────────────────────────────
+    @classmethod
+    def letter_I(cls, font_metrics: Optional[FontMetrics] = None) -> GlyphData:
+        fm = font_metrics or FontMetrics.preset_latin()
+        b = cls(name="I", unicode=0x49, font_metrics=fm).set_advance(round(fm.cap_height * 0.42), 35)
+        stem_w = max(60, round(fm.cap_height * 0.14))
+        stem_x = (b._metrics.advance_width - stem_w) / 2
+        b.draw_rect(stem_x, 0, stem_w, fm.cap_height)
+        return b.build()
 
-def _copy_contour(c: Contour) -> Contour:
-    new = Contour()
-    new.points = [Point(p.x, p.y) for p in c.points]
-    new.flags = list(c.flags)
-    return new
+    @classmethod
+    def letter_O(cls, font_metrics: Optional[FontMetrics] = None) -> GlyphData:
+        fm = font_metrics or FontMetrics.preset_latin()
+        b = cls(name="O", unicode=0x4F, font_metrics=fm).set_advance(round(fm.cap_height * 0.84), 45)
+        aw = b._metrics.advance_width
+        cx = aw / 2
+        cy = fm.cap_height / 2
+        outer_r = min(aw / 2 - 20, fm.cap_height / 2)
+        inner_r = max(outer_r * 0.55, 40)
+
+        outer = CurveEngine.circle(cx, cy, outer_r)
+        inner = CurveEngine.circle(cx, cy, inner_r)
+        inner.points = list(reversed(inner.points))
+        inner.flags = list(reversed(inner.flags))
+
+        b._contours.extend([outer, inner])
+        return b.build()
