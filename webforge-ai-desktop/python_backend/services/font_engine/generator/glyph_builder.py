@@ -1,7 +1,7 @@
 """
 glyph_builder.py
 ────────────────
-Minimal builder for programmatically assembling glyphs.
+GlyphData and GlyphBuilder used to construct generator glyph outlines and metrics before FontAssembler builds a font.
 """
 
 from __future__ import annotations

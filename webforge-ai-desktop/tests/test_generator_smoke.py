@@ -22,12 +22,13 @@ def test_kerning_engine_preset():
 
 
 def test_font_assembler_build():
+    pytest.importorskip("fontTools")
+
     assembler = FontAssembler(
         metrics=FontMetrics.preset_latin(),
         metadata=FontMetadata(family_name="SmokeTest", style_name="Regular"),
     )
     assembler.add_glyph(GlyphBuilder.letter_O())
 
-    pytest.importorskip("fontTools")
     out = assembler.build_ttf()
     assert isinstance(out, bytes)
