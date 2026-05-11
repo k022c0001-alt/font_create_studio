@@ -1,7 +1,7 @@
 """
 glyph_builder.py
 ────────────────
-グリフをプログラムで組み立てるための最小ビルダー。
+Minimal builder for programmatically assembling glyphs.
 """
 
 from __future__ import annotations
@@ -90,6 +90,12 @@ class GlyphBuilder:
             metrics=self._metrics,
         )
 
+
+    @staticmethod
+    def _reverse_contour(contour: Contour) -> None:
+        contour.points = list(reversed(contour.points))
+        contour.flags = list(reversed(contour.flags))
+
     @classmethod
     def space(cls, font_metrics: Optional[FontMetrics] = None) -> GlyphData:
         fm = font_metrics or FontMetrics.preset_latin()
@@ -124,8 +130,7 @@ class GlyphBuilder:
 
         outer = CurveEngine.circle(cx, cy, outer_r)
         inner = CurveEngine.circle(cx, cy, inner_r)
-        inner.points = list(reversed(inner.points))
-        inner.flags = list(reversed(inner.flags))
+        cls._reverse_contour(inner)
 
         b._contours.extend([outer, inner])
         return b.build()

@@ -28,9 +28,6 @@ def test_font_assembler_build():
     )
     assembler.add_glyph(GlyphBuilder.letter_O())
 
-    try:
-        out = assembler.build_ttf()
-    except ImportError:
-        pytest.skip("fonttools is not installed")
-
+    pytest.importorskip("fontTools")
+    out = assembler.build_ttf()
     assert isinstance(out, bytes)
