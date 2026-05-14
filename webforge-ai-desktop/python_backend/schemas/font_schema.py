@@ -1,236 +1,487 @@
 """
-schemas/font_schema.py
-──────────────────────
-フォント生成・変換 API の Pydantic モデル定義。
+font_schema.py
+──────────────
+FastAPI リクエスト/レスポンス用の Pydantic モデル定義。
+FontAssembler や GlyphBuilder との連携を想定した設計。
 
-FastAPI はこれを使って:
-  - リクエストボディのバリデーション
-  - OpenAPI ドキュメントの自動生成
-  - レスポンスの JSON シリアライズ
-を行う。
+主要なモデル:
+  - FontMetricsInput / FontMetricsResponse : フォント全体のメトリクス
+  - GlyphDataInput / GlyphDataResponse : 個別グリフデータ
+  - FontMetadataInput / FontMetadataResponse : フォント名・バージョン等
+  - FontGenerateRequest : フォント生成リクエスト
+  - FontResponse : フォント情報レスポンス
+  - FontSubsetRequest / FontConvertRequest : Phase 2+ オペレーション
 """
 
-from __future__ import annotations
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
-from enum import Enum
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from datetime import datetime
 
 
-# ──────────────────────────────────────────────
-# 共通 Enum
-# ──────────────────────────────────────────────
-
-class CapStyleEnum(str, Enum):
-    butt   = "butt"
-    round  = "round"
-    square = "square"
-
-
-class JoinStyleEnum(str, Enum):
-    miter = "miter"
-    round = "round"
-    bevel = "bevel"
-
-
-class FontOutputFormat(str, Enum):
-    ttf   = "ttf"
-    woff2 = "woff2"
-
-
-class PreviewType(str, Enum):
-    sample     = "sample"
-    grid       = "grid"
-    sizes      = "sizes"
-    weights    = "weights"
-
-
-# ──────────────────────────────────────────────
-# POST /fonts/generate
-# ──────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+# 1. メトリクス関連
+# ─────────────────────────────────────────────────────────────────
 
 class FontMetricsInput(BaseModel):
-    """FontMetrics の API 入力表現。省略時はプリセットを使用。"""
-    upm:         int   = Field(1000,  ge=16,    le=16384, description="Units Per eM")
-    ascender:    int   = Field(800,   ge=1,     le=16384)
-    descender:   int   = Field(-200,  le=-1)
-    cap_height:  int   = Field(700,   ge=1,     le=16384)
-    x_height:    int   = Field(520,   ge=1,     le=16384)
-    line_gap:    int   = Field(0,     ge=0)
+    """フォント生成時のメトリクス入力（font_assembler.py の FontMetrics に対応）"""
+    upm: int = Field(default=1000, description="Units Per Em", ge=512, le=4096)
+    ascender: int = Field(default=800, description="上端の高さ")
+    descender: int = Field(default=-200, description="下端の深さ（負の値）")
+    cap_height: int = Field(default=700, description="大文字の高さ")
+    x_height: int = Field(default=500, description="小文字xの高さ")
+    line_gap: int = Field(default=0, description="行間")
+    italic_angle: float = Field(default=0.0, description="イタリック角度（度）")
 
-    @field_validator("descender")
-    @classmethod
-    def descender_must_be_negative(cls, v: int) -> int:
-        if v >= 0:
-            raise ValueError("descender は負の値にしてください")
-        return v
-
-
-class StrokeParams(BaseModel):
-    """ストロークエンジンのパラメーター。"""
-    weight:     float        = Field(80.0,  gt=0,  le=2000, description="ストローク幅（em単位）")
-    cap_style:  CapStyleEnum = Field(CapStyleEnum.round)
-    join_style: JoinStyleEnum = Field(JoinStyleEnum.round)
+    class Config:
+        example = {
+            "upm": 1000,
+            "ascender": 800,
+            "descender": -200,
+            "cap_height": 700,
+            "x_height": 500,
+            "line_gap": 0,
+            "italic_angle": 0.0,
+        }
 
 
-class GlyphRequest(BaseModel):
-    """
-    1グリフの生成リクエスト。
-    shape="rect" | "circle" | "stroke" | "preset:{name}" で形状を指定する。
-    """
-    name:          str            = Field(..., min_length=1, max_length=64,
-                                          description="グリフ名 例: 'A', 'uni3042'")
-    unicode:       Optional[int]  = Field(None, ge=0, le=0x10FFFF,
-                                          description="Unicodeコードポイント (16進数も可)")
-    shape:         str            = Field("preset:space",
-                                          description="形状種別: rect/circle/stroke/preset:O など")
-    advance_width: Optional[int]  = Field(None, ge=1, le=32768)
-    lsb:           int            = Field(0,    ge=0)
-    stroke:        Optional[StrokeParams] = None
+class FontMetricsResponse(BaseModel):
+    """メトリクス情報（レスポンス）"""
+    upm: int
+    ascender: int
+    descender: int
+    cap_height: int
+    x_height: int
+    line_gap: int
+    italic_angle: float
 
-    # shape の簡易バリデーション
-    @field_validator("shape")
-    @classmethod
-    def shape_valid(cls, v: str) -> str:
-        allowed_prefixes = ("rect", "circle", "stroke", "preset:")
-        if not any(v.startswith(p) for p in allowed_prefixes):
-            raise ValueError(
-                f"shape は {allowed_prefixes} のいずれかで始まる値を指定してください"
-            )
-        return v
 
+# ─────────────────────────────────────────────────────────────────
+# 2. グリフ関連
+# ─────────────────────────────────────────────────────────────────
+
+class ContourPointInput(BaseModel):
+    """輪郭上の1点（curve_engine.py の Point に対応）"""
+    x: float = Field(..., description="X座標")
+    y: float = Field(..., description="Y座標")
+    on_curve: bool = Field(default=True, description="オンカーブ点か（True=on, False=off）")
+
+
+class ContourInput(BaseModel):
+    """1つの輪郭（閉じた曲線）"""
+    points: List[ContourPointInput] = Field(..., min_items=3, description="最低3点必要")
+
+    class Config:
+        example = {
+            "points": [
+                {"x": 0, "y": 0, "on_curve": True},
+                {"x": 100, "y": 0, "on_curve": True},
+                {"x": 100, "y": 100, "on_curve": True},
+                {"x": 0, "y": 100, "on_curve": True},
+            ]
+        }
+
+
+class GlyphMetricsInput(BaseModel):
+    """グリフのメトリクス（GlyphData.metrics に対応）"""
+    advance_width: int = Field(..., description="グリフ前進幅", ge=0)
+    left_side_bearing: int = Field(default=0, description="左サイドベアリング")
+
+
+class GlyphDataInput(BaseModel):
+    """グリフデータ（リクエスト）- GlyphData に対応"""
+    name: str = Field(..., min_length=1, description="グリフ名（e.g., 'A', 'a', 'space'）")
+    unicode: Optional[int] = Field(default=None, description="Unicode コードポイント", ge=0, le=0x10FFFF)
+    contours: List[ContourInput] = Field(default_factory=list, description="輪郭リスト")
+    metrics: GlyphMetricsInput
+
+    class Config:
+        example = {
+            "name": "A",
+            "unicode": 65,
+            "contours": [
+                {
+                    "points": [
+                        {"x": 0, "y": 0, "on_curve": True},
+                        {"x": 100, "y": 0, "on_curve": True},
+                        {"x": 100, "y": 100, "on_curve": True},
+                        {"x": 0, "y": 100, "on_curve": True},
+                    ]
+                }
+            ],
+            "metrics": {
+                "advance_width": 100,
+                "left_side_bearing": 0,
+            },
+        }
+
+
+class GlyphDataResponse(BaseModel):
+    """グリフ情報（レスポンス）"""
+    id: str = Field(..., description="グリフID")
+    font_id: str = Field(..., description="親フォントID")
+    name: str = Field(..., description="グリフ名")
+    unicode: Optional[int] = Field(default=None, description="Unicode コードポイント")
+    contour_count: int = Field(..., description="輪郭数")
+    created_at: str = Field(..., description="作成日時（ISO 8601）")
+
+
+# ─────────────────────────────────────────────────────────────────
+# 3. メタデータ関連
+# ─────────────────────────────────────────────────────────────────
 
 class FontMetadataInput(BaseModel):
-    family_name: str = Field("WebForge Font", min_length=1, max_length=64)
-    style_name:  str = Field("Regular",       min_length=1, max_length=32)
-    version:     str = Field("1.0",           max_length=16)
-    copyright:   str = Field("",              max_length=256)
-    designer:    str = Field("",              max_length=128)
-    description: str = Field("",              max_length=512)
-    url:         str = Field("",              max_length=256)
+    """フォントメタデータ（リクエスト）- FontMetadata に対応"""
+    family_name: str = Field(..., min_length=1, description="フォント族名（e.g., 'MyFont'）")
+    style_name: str = Field(default="Regular", description="スタイル名（e.g., 'Regular', 'Bold', 'Italic'）")
+    version: str = Field(default="1.0", description="バージョン文字列")
+    copyright: str = Field(default="", description="著作権表記")
+    designer: str = Field(default="", description="デザイナー名")
+    description: str = Field(default="", description="フォント説明")
+    url: str = Field(default="", description="フォント関連のURL")
+
+    class Config:
+        example = {
+            "family_name": "WebForge",
+            "style_name": "Regular",
+            "version": "1.0",
+            "copyright": "Copyright 2026",
+            "designer": "Designer Name",
+            "description": "A beautiful font",
+            "url": "https://example.com",
+        }
 
 
-class GenerateFontRequest(BaseModel):
-    """POST /fonts/generate のリクエストボディ。"""
-    metadata:      FontMetadataInput          = Field(default_factory=FontMetadataInput)
-    metrics:       Optional[FontMetricsInput] = None   # None でプリセット (latin)
-    glyphs:        list[GlyphRequest]         = Field(..., min_length=1, max_length=512)
-    output_format: FontOutputFormat           = FontOutputFormat.woff2
-    include_kerning: bool                     = Field(True,
-                                                      description="latin プリセットのカーニングを含めるか")
-
-    model_config = {"json_schema_extra": {"example": {
-        "metadata": {"family_name": "MyFont", "style_name": "Regular"},
-        "glyphs": [
-            {"name": ".space", "unicode": 32,  "shape": "preset:space"},
-            {"name": "O",      "unicode": 79,  "shape": "preset:O"},
-            {"name": "I",      "unicode": 73,  "shape": "preset:I"},
-        ],
-        "output_format": "woff2",
-    }}}
+class FontMetadataResponse(BaseModel):
+    """フォントメタデータ（レスポンス）"""
+    family_name: str
+    style_name: str
+    version: str
+    full_name: str = Field(..., description="full_name = family_name + style_name")
+    postscript_name: str = Field(..., description="PostScript名（スペースなし）")
+    copyright: str
+    designer: str
+    description: str
+    url: str
 
 
-class GenerateFontResponse(BaseModel):
-    """POST /fonts/generate のレスポンス。"""
-    font_id:        str   = Field(..., description="生成フォントの一時ID（プレビュー等に使う）")
-    family_name:    str
-    style_name:     str
-    glyph_count:    int
-    output_format:  str
-    file_size_bytes: int
-    font_face_css:  str   = Field(..., description="@font-face CSS（base64埋め込み）")
-    data_url:       str   = Field(..., description="data: URL（フロントで直接使用可）")
+# ─────────────────────────────────────────────────────────────────
+# 4. フォント生成リクエスト
+# ─────────────────────────────────────────────────────────────────
+
+class FontGenerateRequest(BaseModel):
+    """フォント生成リクエスト - FontAssembler.build_ttf() に対応"""
+    project_id: str = Field(..., description="プロジェクトID")
+    metadata: FontMetadataInput = Field(..., description="フォントメタデータ")
+    metrics: FontMetricsInput = Field(..., description="フォントメトリクス")
+    glyphs: List[GlyphDataInput] = Field(
+        default_factory=list,
+        description="グリフリスト（空でもOK）"
+    )
+
+    class Config:
+        example = {
+            "project_id": "proj-abc123",
+            "metadata": {
+                "family_name": "WebForge",
+                "style_name": "Regular",
+                "version": "1.0",
+            },
+            "metrics": {
+                "upm": 1000,
+                "ascender": 800,
+                "descender": -200,
+                "cap_height": 700,
+                "x_height": 500,
+            },
+            "glyphs": [],
+        }
 
 
-# ──────────────────────────────────────────────
-# POST /fonts/subset
-# ──────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+# 5. フォント情報レスポンス
+# ─────────────────────────────────────────────────────────────────
 
-class SubsetRequest(BaseModel):
-    """POST /fonts/subset のリクエストボディ。"""
-    font_id:         Optional[str] = Field(None,
-                                           description="generate で得た font_id（これか file_b64 のどちらか）")
-    file_b64:        Optional[str] = Field(None,
-                                           description="TTF/OTF の Base64（font_id がない場合）")
-    text:            Optional[str] = Field(None, max_length=10000,
-                                           description="含める文字列")
-    unicodes:        Optional[list[int]] = Field(None,
-                                                  description="含めるコードポイントのリスト")
-    preset:          Optional[str] = Field(None,
-                                           description="landing_jp / landing_en")
-    output_format:   FontOutputFormat = FontOutputFormat.woff2
-    hinting:         bool = False
-
-    @field_validator("preset")
-    @classmethod
-    def preset_valid(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in ("landing_jp", "landing_en"):
-            raise ValueError("preset は 'landing_jp' か 'landing_en' を指定してください")
-        return v
-
-    def has_content(self) -> bool:
-        """テキスト・unicodes・preset のいずれかが指定されているか。"""
-        return bool(self.text or self.unicodes or self.preset)
+class FontResponse(BaseModel):
+    """フォント情報（レスポンス）"""
+    id: str = Field(..., description="フォントID（UUID）")
+    project_id: str = Field(..., description="プロジェクトID")
+    metadata: FontMetadataResponse = Field(..., description="メタデータ")
+    metrics: FontMetricsResponse = Field(..., description="メトリクス")
+    glyph_count: int = Field(..., description="含まれるグリフ数", ge=0)
+    file_path: str = Field(..., description="ファイル保存パス")
+    format: str = Field(default="ttf", description="フォーマット（ttf | woff2 | woff）")
+    file_size: int = Field(..., description="ファイルサイズ（バイト）", ge=0)
+    created_at: str = Field(..., description="作成日時（ISO 8601）")
+    updated_at: str = Field(..., description="更新日時（ISO 8601）")
 
 
-class SubsetResponse(BaseModel):
-    """POST /fonts/subset のレスポンス。"""
-    font_id:              str
-    original_glyph_count: int
-    subset_glyph_count:   int
-    original_size_bytes:  int
-    subset_size_bytes:    int
-    reduction_percent:    str
-    font_face_css:        str
-    data_url:             str
+class FontListResponse(BaseModel):
+    """フォント一覧"""
+    total: int = Field(..., description="合計件数", ge=0)
+    items: List[FontResponse] = Field(..., description="フォントのリスト")
 
 
-# ──────────────────────────────────────────────
-# POST /fonts/convert
-# ──────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+# 6. フォント操作リクエスト（Phase 2+）
+# ─────────────────────────────────────────────────────────────────
 
-class ConvertRequest(BaseModel):
-    """POST /fonts/convert のリクエストボディ。"""
-    font_id:       Optional[str] = None
-    file_b64:      Optional[str] = None
-    family_name:   str           = Field("Converted Font", min_length=1)
-    style_name:    str           = Field("Regular",        min_length=1)
-    weight:        int           = Field(0, ge=0, le=1000,
-                                        description="0=style_name から自動推定")
-    output_format: FontOutputFormat = FontOutputFormat.woff2
+class FontSubsetRequest(BaseModel):
+    """サブセット化リクエスト（Phase 2）"""
+    font_id: str = Field(..., description="対象フォントID")
+    unicode_ranges: List[str] = Field(
+        default=["latin"],
+        description="Unicode範囲（プリセット: 'latin', 'latin_extended', 'greek', 'cyrillic', 'cjk', 'hiragana', 'katakana'）"
+    )
+    custom_codepoints: Optional[List[int]] = Field(
+        default=None,
+        description="カスタムコードポイント（ここで指定したら unicode_ranges は無視される）"
+    )
+    output_format: str = Field(default="ttf", description="出力フォーマット（ttf | woff2）")
 
-
-class ConvertResponse(BaseModel):
-    """POST /fonts/convert のレスポンス。"""
-    font_id:              str
-    family_name:          str
-    style_name:           str
-    weight:               int
-    original_size_bytes:  int
-    converted_size_bytes: int
-    reduction_percent:    str
-    font_face_css:        str
-    data_url:             str
+    class Config:
+        example = {
+            "font_id": "font-abc123",
+            "unicode_ranges": ["latin", "greek"],
+            "output_format": "woff2",
+        }
 
 
-# ──────────────────────────────────────────────
-# GET /fonts/preview/{id}
-# ──────────────────────────────────────────────
+class FontConvertRequest(BaseModel):
+    """フォーマット変換リクエスト（Phase 2）"""
+    font_id: str = Field(..., description="対象フォントID")
+    output_format: str = Field(
+        default="woff2",
+        description="出力フォーマット（woff2 | woff | ttf）"
+    )
 
-class PreviewParams(BaseModel):
-    """GET /fonts/preview/{id} のクエリパラメーター。"""
-    type:        PreviewType = PreviewType.sample
-    text:        str         = Field("Aa Bb 123", max_length=200)
-    width:       int         = Field(800,  ge=100, le=2400)
-    height:      int         = Field(200,  ge=50,  le=1200)
-    font_size:   int         = Field(80,   ge=8,   le=400)
-    columns:     int         = Field(16,   ge=4,   le=64,
-                                     description="グリフグリッドの列数")
+    class Config:
+        example = {
+            "font_id": "font-abc123",
+            "output_format": "woff2",
+        }
 
 
-# ──────────────────────────────────────────────
-# 共通エラーレスポンス
-# ──────────────────────────────────────────────
+class FontVariableAdjustRequest(BaseModel):
+    """Variable Font軸調整リクエスト（Phase 1+）"""
+    font_id: str = Field(..., description="対象フォントID")
+    axis_name: str = Field(
+        ...,
+        description="軸名（'weight', 'width', 'slant', 'italic' など）"
+    )
+    axis_value: float = Field(
+        ...,
+        description="軸値（0.0 ～ 1.0、またはスケール値）",
+        ge=0.0,
+        le=1.0
+    )
+
+    class Config:
+        example = {
+            "font_id": "font-abc123",
+            "axis_name": "weight",
+            "axis_value": 0.5,
+        }
+
+
+# ─────────────────────────────────────────────────────────────────
+# 7. フォント操作レスポンス
+# ─────────────────────────────────────────────────────────────────
+
+class FontSubsetResponse(BaseModel):
+    """サブセット化結果"""
+    subset_id: str = Field(..., description="サブセットID")
+    parent_font_id: str = Field(..., description="元のフォントID")
+    included_ranges: List[str] = Field(..., description="含まれるUnicode範囲")
+    glyph_count: int = Field(..., description="サブセット後のグリフ数")
+    file_path: str = Field(..., description="サブセット後のファイルパス")
+    file_size: int = Field(..., description="ファイルサイズ")
+    created_at: str = Field(..., description="作成日時")
+
+
+class FontConvertResponse(BaseModel):
+    """フォーマット変換結果"""
+    converted_id: str = Field(..., description="変換後のフォントID")
+    parent_font_id: str = Field(..., description="元のフォントID")
+    output_format: str = Field(..., description="出力フォーマット")
+    file_path: str = Field(..., description="変換後のファイルパス")
+    file_size: int = Field(..., description="ファイルサイズ")
+    created_at: str = Field(..., description="作成日時")
+
+
+# ─────────────────────────────────────────────────────────────────
+# 8. プレビュー関連
+# ─────────────────────────────────────────────────────────────────
+
+class FontPreviewRequest(BaseModel):
+    """フォントプレビュー生成リクエスト"""
+    font_id: str = Field(..., description="対象フォントID")
+    preview_text: str = Field(
+        default="AaBbCc123",
+        description="プレビュー用テキスト"
+    )
+    font_size: int = Field(default=48, description="プレビューのフォントサイズ", ge=12, le=256)
+
+
+class FontPreviewResponse(BaseModel):
+    """フォントプレビュー（レスポンス）"""
+    font_id: str = Field(..., description="フォントID")
+    preview_image_base64: str = Field(..., description="プレビュー画像（Base64エンコード）")
+    preview_text: str = Field(..., description="プレビューに使用したテキスト")
+    font_size: int = Field(..., description="フォントサイズ")
+    generated_at: str = Field(..., description="生成日時")
+
+
+# ─────────────────────────────────────────────────────────────────
+# 9. エクスポート関連
+# ─────────────────────────────────────────────────────────────────
+
+class FontExportRequest(BaseModel):
+    """フォントエクスポートリクエスト"""
+    font_id: str = Field(..., description="対象フォントID")
+    format: str = Field(default="ttf", description="エクスポート形式（ttf | woff2 | woff）")
+    include_variations: bool = Field(
+        default=False,
+        description="Variable Font情報を含めるか"
+    )
+
+    class Config:
+        example = {
+            "font_id": "font-abc123",
+            "format": "woff2",
+            "include_variations": False,
+        }
+
+
+class FontExportResponse(BaseModel):
+    """エクスポート結果"""
+    export_id: str = Field(..., description="エクスポートID")
+    font_id: str = Field(..., description="対象フォントID")
+    file_path: str = Field(..., description="エクスポートファイルパス")
+    download_url: str = Field(..., description="ダウンロードURL")
+    format: str = Field(..., description="エクスポート形式")
+    file_size: int = Field(..., description="ファイルサイズ")
+    created_at: str = Field(..., description="作成日時")
+
+
+# ─────────────────────────────────────────────────────────────────
+# 10. ストローク関連（Phase 2+ 拡張用）
+# ─────────────────────────────────────────────────────────────────
+
+class StrokeSettingsInput(BaseModel):
+    """ストローク設定（stroke_engine.py に対応）"""
+    width: float = Field(..., description="ストローク幅", ge=0.0)
+    cap_style: str = Field(
+        default="round",
+        description="キャップスタイル（butt | round | square）"
+    )
+    join_style: str = Field(
+        default="miter",
+        description="ジョインスタイル（miter | round | bevel）"
+    )
+    miter_limit: float = Field(default=10.0, description="ミターリミット", ge=1.0)
+
+    class Config:
+        example = {
+            "width": 50.0,
+            "cap_style": "round",
+            "join_style": "miter",
+            "miter_limit": 10.0,
+        }
+
+
+class StrokeSettingsResponse(BaseModel):
+    """ストローク設定（レスポンス）"""
+    width: float
+    cap_style: str
+    join_style: str
+    miter_limit: float
+
+
+class FontWithStrokeRequest(BaseModel):
+    """ストロークパラメータ付きフォント生成（Phase 2+）"""
+    project_id: str = Field(..., description="プロジェクトID")
+    metadata: FontMetadataInput = Field(..., description="メタデータ")
+    metrics: FontMetricsInput = Field(..., description="メトリクス")
+    stroke_settings: StrokeSettingsInput = Field(..., description="ストローク設定")
+    glyphs: List[GlyphDataInput] = Field(..., description="グリフリスト")
+
+    class Config:
+        example = {
+            "project_id": "proj-abc123",
+            "metadata": {
+                "family_name": "WebForge Stroke",
+                "style_name": "Regular",
+            },
+            "metrics": {
+                "upm": 1000,
+                "ascender": 800,
+                "descender": -200,
+            },
+            "stroke_settings": {
+                "width": 50.0,
+                "cap_style": "round",
+                "join_style": "miter",
+            },
+            "glyphs": [],
+        }
+
+
+# ─────────────────────────────────────────────────────────────────
+# 11. キャッシュ・履歴関連
+# ─────────────────────────────────────────────────────────────────
+
+class FontGenerationHistoryEntry(BaseModel):
+    """フォント生成履歴"""
+    generation_id: str = Field(..., description="生成ID（UUID）")
+    project_id: str = Field(..., description="プロジェクトID")
+    font_id: str = Field(..., description="生成されたフォントID")
+    request_data: Dict[str, Any] = Field(..., description="リクエストデータ（JSON）")
+    generated_at: str = Field(..., description="生成日時（ISO 8601）")
+    status: str = Field(
+        ...,
+        description="ステータス（success | failed | pending）"
+    )
+    error_message: Optional[str] = Field(default=None, description="エラーメッセージ")
+
+
+class FontGenerationHistoryListResponse(BaseModel):
+    """生成履歴一覧"""
+    total: int = Field(..., description="合計件数")
+    items: List[FontGenerationHistoryEntry] = Field(..., description="履歴エントリ")
+
+
+class FontCacheInfo(BaseModel):
+    """キャッシュ情報"""
+    font_id: str = Field(..., description="フォントID")
+    cached_at: str = Field(..., description="キャッシュ日時（ISO 8601）")
+    cache_size: int = Field(..., description="キャッシュサイズ（バイト）")
+    ttl_seconds: int = Field(..., description="TTL（秒）")
+    is_valid: bool = Field(..., description="キャッシュは有効か")
+
+
+# ─────────────────────────────────────────────────────────────────
+# 12. エラーレスポンス
+# ─────────────────────────────────────────────────────────────────
 
 class ErrorResponse(BaseModel):
-    detail: str
-    code:   Optional[str] = None
+    """エラーレスポンス"""
+    error_code: str = Field(..., description="エラーコード（e.g., 'INVALID_FONT_ID'）")
+    message: str = Field(..., description="エラーメッセージ")
+    details: Optional[Dict[str, Any]] = Field(default=None, description="詳細情報")
+    timestamp: str = Field(..., description="エラー発生時刻（ISO 8601）")
+
+    class Config:
+        example = {
+            "error_code": "FONT_NOT_FOUND",
+            "message": "The specified font does not exist",
+            "details": {"font_id": "font-abc123"},
+            "timestamp": "2026-05-14T12:34:56Z",
+        }
+
+
+class ValidationErrorResponse(BaseModel):
+    """バリデーションエラーレスポンス"""
+    error_code: str = Field(default="VALIDATION_ERROR", description="エラーコード")
+    message: str = Field(..., description="バリデーションエラーの概要")
+    fields: Dict[str, List[str]] = Field(..., description="フィールド別エラーリスト")
+    timestamp: str = Field(..., description="エラー発生時刻（ISO 8601）")
