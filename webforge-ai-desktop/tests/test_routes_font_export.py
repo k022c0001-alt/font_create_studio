@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Literal
 
 from fastapi.testclient import TestClient
 
@@ -11,7 +12,7 @@ from python_backend.main import app
 client = TestClient(app)
 
 
-def _base_payload(fmt: str = "ttf") -> dict:
+def _base_payload(fmt: Literal["ttf", "woff2"] = "ttf") -> dict:
     return {
         "metadata": {"family_name": "ExportTest", "style_name": "Regular"},
         "format": fmt,

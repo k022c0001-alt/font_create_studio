@@ -46,7 +46,7 @@ class FontExportMetadata(BaseModel):
 class FontExportMetrics(BaseModel):
     upm: int = Field(default=1000, ge=512, le=4096)
     ascender: int = Field(default=800)
-    descender: int = Field(default=-200, lt=0)
+    descender: int = Field(default=-200, le=0)
     cap_height: int = Field(default=700)
     x_height: int = Field(default=500)
     line_gap: int = Field(default=0)

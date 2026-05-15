@@ -8,6 +8,7 @@ from fontTools.ttLib import TTLibError
 
 from python_backend.schemas.font_export_schema import (
     FontExportFormat,
+    FontExportGlyph,
     FontExportRequest,
     FontExportValidateResponse,
     ValidationErrorDetail,
@@ -122,7 +123,7 @@ def _build_font_bytes(req: FontExportRequest) -> bytes:
     return ttf_bytes
 
 
-def _to_glyph_data(glyph_input, glyph_idx: int) -> GlyphData:
+def _to_glyph_data(glyph_input: FontExportGlyph, glyph_idx: int) -> GlyphData:
     if not glyph_input.name.strip():
         raise BuildValidationError("missing_field", "glyph name is required", f"glyphs[{glyph_idx}].name")
 
