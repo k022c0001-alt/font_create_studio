@@ -59,6 +59,38 @@ npm run dev:electron  # Electron only
 npm run dev:python    # Python backend only
 ```
 
+### Font export API (backend)
+
+```bash
+curl -X POST http://localhost:8000/api/fonts/export \
+  -H "Content-Type: application/json" \
+  -o ExportTest-Regular.ttf \
+  -d '{
+    "metadata": {"family_name":"ExportTest","style_name":"Regular"},
+    "format":"ttf",
+    "glyphs":[
+      {
+        "name":"A",
+        "unicode":65,
+        "metrics":{"advance_width":600,"left_side_bearing":20},
+        "contours":[
+          {"points":[
+            {"x":50,"y":0,"on_curve":true},
+            {"x":300,"y":700,"on_curve":true},
+            {"x":550,"y":0,"on_curve":true}
+          ]}
+        ]
+      }
+    ]
+  }'
+```
+
+```bash
+curl -X POST http://localhost:8000/api/fonts/export/validate \
+  -H "Content-Type: application/json" \
+  -d '{ ...same payload... }'
+```
+
 ### Build
 
 ```bash
