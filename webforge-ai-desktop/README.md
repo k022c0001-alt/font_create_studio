@@ -91,6 +91,14 @@ curl -X POST http://localhost:8000/api/fonts/export/validate \
   -d '{ ...same payload... }'
 ```
 
+```bash
+curl -X POST http://localhost:8000/api/fonts/import \
+  -F "file=@YourGoogleFont.ttf" \
+  -F "preset=jp" \
+  -F "max_glyphs=1000" \
+  -o imported.json
+```
+
 ### Build
 
 ```bash
