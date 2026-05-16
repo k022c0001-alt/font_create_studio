@@ -41,12 +41,12 @@ class ImportedFontMetadata(BaseModel):
 
 
 class ImportedFontMetrics(BaseModel):
-    unitsPerEm: int
+    units_per_em: int = Field(serialization_alias="unitsPerEm")
     ascender: Optional[int] = None
     descender: Optional[int] = None
-    lineGap: Optional[int] = None
-    capHeight: Optional[int] = None
-    xHeight: Optional[int] = None
+    line_gap: Optional[int] = Field(default=None, serialization_alias="lineGap")
+    cap_height: Optional[int] = Field(default=None, serialization_alias="capHeight")
+    x_height: Optional[int] = Field(default=None, serialization_alias="xHeight")
 
 
 class FontImportResponse(BaseModel):

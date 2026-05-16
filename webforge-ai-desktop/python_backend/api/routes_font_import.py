@@ -111,7 +111,12 @@ def _parse_unicodes(values: list[object]) -> list[int] | None:
             try:
                 decoded = json.loads(text)
             except json.JSONDecodeError as exc:
-                raise ImportValidationError(422, "invalid_unicodes", "unicodes must be valid integers", "unicodes") from exc
+                raise ImportValidationError(
+                    422,
+                    "invalid_unicodes",
+                    "unicodes must be a valid JSON array when bracket syntax is used",
+                    "unicodes",
+                ) from exc
             if not isinstance(decoded, list):
                 raise ImportValidationError(422, "invalid_unicodes", "unicodes must be a list of integers", "unicodes")
             parsed_values.extend(decoded)
@@ -177,12 +182,12 @@ def _extract_metrics(font: TTFont) -> ImportedFontMetrics:
     hhea = font.get("hhea")
     os2 = font.get("OS/2")
     return ImportedFontMetrics(
-        unitsPerEm=head.unitsPerEm,
-        ascender=getattr(hhea, "ascent", None),
-        descender=getattr(hhea, "descent", None),
-        lineGap=getattr(hhea, "lineGap", None),
-        capHeight=getattr(os2, "sCapHeight", None),
-        xHeight=getattr(os2, "sxHeight", None),
+        units_per_em=head.unitsPerEm,
+        ascender=getattr(hhea, "ascent", getattr(hhea, "ascender", None)),
+        descender=getattr(hhea, "descent", getattr(hhea, "descender", None)),
+        line_gap=getattr(hhea, "lineGap", None),
+        cap_height=getattr(os2, "sCapHeight", None),
+        x_height=getattr(os2, "sxHeight", None),
     )
 
 

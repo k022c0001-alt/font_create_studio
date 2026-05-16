@@ -49,7 +49,7 @@ def test_import_ttf_returns_glyphs_metadata_and_metrics():
 def test_import_ttf_honors_unicode_override():
     response = client.post(
         "/api/fonts/import",
-        data={"unicodes": "0x49,0x4F"},
+        data={"unicodes": "[73, 79]"},
         files={"file": ("ImportFixture.ttf", _build_test_ttf(), "font/ttf")},
     )
 
@@ -76,4 +76,7 @@ def test_import_ttf_rejects_invalid_font_file():
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"]["location"] == "file"
+    detail = response.json()["detail"]
+    assert detail["code"] == "fonttools_error"
+    assert detail["location"] == "file"
+    assert detail["message"]
