@@ -533,5 +533,3 @@ def _build_glyph(
         raise ValueError(f"未知の shape: {shape!r}")
 
     return builder.build()
-
-    return builder.build()
