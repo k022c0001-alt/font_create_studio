@@ -16,6 +16,7 @@ FontAssembler や GlyphBuilder との連携を想定した設計。
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from enum import Enum
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -485,3 +486,133 @@ class ValidationErrorResponse(BaseModel):
     message: str = Field(..., description="バリデーションエラーの概要")
     fields: Dict[str, List[str]] = Field(..., description="フィールド別エラーリスト")
     timestamp: str = Field(..., description="エラー発生時刻（ISO 8601）")
+
+
+# ─────────────────────────────────────────────────────────────────
+# routes_font_generator.py 互換モデル
+# ─────────────────────────────────────────────────────────────────
+
+class FontOutputFormat(str, Enum):
+    ttf = "ttf"
+    woff2 = "woff2"
+
+
+class PreviewType(str, Enum):
+    sample = "sample"
+    grid = "grid"
+    sizes = "sizes"
+    weights = "weights"
+
+
+class StrokeStyle(str, Enum):
+    butt = "butt"
+    round = "round"
+    square = "square"
+    miter = "miter"
+    bevel = "bevel"
+
+
+class GenerateMetadata(BaseModel):
+    family_name: str = Field(..., min_length=1)
+    style_name: str = Field(default="Regular", min_length=1)
+    version: str = Field(default="Version 1.000")
+    copyright: str = Field(default="")
+    designer: str = Field(default="")
+    description: str = Field(default="")
+    url: str = Field(default="")
+
+
+class GenerateMetrics(BaseModel):
+    upm: int = Field(default=1000, ge=256, le=4096)
+    ascender: int = Field(default=800)
+    descender: int = Field(default=-200, le=0)
+    cap_height: int = Field(default=700)
+    x_height: int = Field(default=500)
+    line_gap: int = Field(default=0)
+
+
+class StrokeParams(BaseModel):
+    weight: float = Field(default=80.0, gt=0)
+    cap_style: StrokeStyle = Field(default=StrokeStyle.round)
+    join_style: StrokeStyle = Field(default=StrokeStyle.round)
+
+
+class GenerateGlyph(BaseModel):
+    name: str = Field(..., min_length=1)
+    unicode: Optional[int] = Field(default=None, ge=0, le=0x10FFFF)
+    shape: str = Field(..., min_length=1)
+    advance_width: Optional[int] = Field(default=None, gt=0)
+    lsb: int = Field(default=0)
+    stroke: Optional[StrokeParams] = None
+
+
+class GenerateFontRequest(BaseModel):
+    metadata: GenerateMetadata
+    glyphs: List[GenerateGlyph] = Field(..., min_length=1)
+    metrics: Optional[GenerateMetrics] = None
+    include_kerning: bool = True
+    output_format: FontOutputFormat = FontOutputFormat.woff2
+
+
+class GenerateFontResponse(BaseModel):
+    font_id: str
+    family_name: str
+    style_name: str
+    glyph_count: int
+    output_format: str
+    file_size_bytes: int
+    font_face_css: str
+    data_url: str
+
+
+class SubsetRequest(BaseModel):
+    font_id: Optional[str] = None
+    file_b64: Optional[str] = None
+    text: Optional[str] = None
+    unicodes: Optional[List[int]] = None
+    preset: Optional[str] = None
+    hinting: bool = False
+    output_format: FontOutputFormat = FontOutputFormat.woff2
+
+    def has_content(self) -> bool:
+        return bool(self.text) or bool(self.unicodes) or bool(self.preset)
+
+
+class SubsetResponse(BaseModel):
+    font_id: str
+    original_glyph_count: int
+    subset_glyph_count: int
+    original_size_bytes: int
+    subset_size_bytes: int
+    reduction_percent: str
+    font_face_css: str
+    data_url: str
+
+
+class ConvertRequest(BaseModel):
+    font_id: Optional[str] = None
+    file_b64: Optional[str] = None
+    family_name: str = Field(..., min_length=1)
+    style_name: str = Field(default="Regular")
+    weight: int = Field(default=0, ge=0, le=1000)
+
+
+class ConvertResponse(BaseModel):
+    font_id: str
+    family_name: str
+    style_name: str
+    weight: int
+    original_size_bytes: int
+    converted_size_bytes: int
+    reduction_percent: str
+    font_face_css: str
+    data_url: str
+
+
+class PreviewParams(BaseModel):
+    type: PreviewType = PreviewType.sample
+    text: str = "Aa Bb 123"
+    width: int = Field(default=800, ge=100, le=2400)
+    height: int = Field(default=200, ge=50, le=1200)
+    font_size: int = Field(default=80, ge=8, le=400)
+    columns: int = Field(default=16, ge=4, le=64)

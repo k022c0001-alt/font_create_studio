@@ -99,6 +99,44 @@ curl -X POST http://localhost:8000/api/fonts/import \
   -o imported.json
 ```
 
+### Font generator API (backend)
+
+```bash
+curl -X POST http://localhost:8000/fonts/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metadata": {"family_name":"RouteTest","style_name":"Regular"},
+    "glyphs": [
+      {"name": ".space", "unicode": 32, "shape": "preset:space"},
+      {"name": "O", "unicode": 79, "shape": "preset:O"}
+    ],
+    "output_format": "woff2"
+  }'
+```
+
+```bash
+curl -X POST http://localhost:8000/fonts/subset \
+  -H "Content-Type: application/json" \
+  -d '{
+    "font_id": "<generated-font-id>",
+    "text": "Hello",
+    "output_format": "ttf"
+  }'
+```
+
+```bash
+curl -X POST http://localhost:8000/fonts/convert \
+  -H "Content-Type: application/json" \
+  -d '{
+    "font_id": "<generated-font-id>",
+    "family_name": "RouteTestWeb"
+  }'
+```
+
+```bash
+curl "http://localhost:8000/fonts/preview/<generated-font-id>?type=sample&text=Hello"
+```
+
 ### Build
 
 ```bash
