@@ -13,6 +13,7 @@ const IPC_CHANNELS = {
     GENERATE: 'font:generate',
     CONVERT: 'font:convert',
     SUBSET: 'font:subset',
+    PREVIEW: 'font:preview',
   },
   AI: {
     CHAT: 'ai:chat',
@@ -36,6 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateFont: (data: any) => ipcRenderer.invoke(IPC_CHANNELS.FONT.GENERATE, data),
   convertFont: (data: any) => ipcRenderer.invoke(IPC_CHANNELS.FONT.CONVERT, data),
   subsetFont: (data: any) => ipcRenderer.invoke(IPC_CHANNELS.FONT.SUBSET, data),
+  previewFont: (data: any) => ipcRenderer.invoke(IPC_CHANNELS.FONT.PREVIEW, data),
 
   // AI operations
   chatAI: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AI.CHAT, message),

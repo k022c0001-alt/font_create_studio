@@ -1,218 +1,97 @@
 import { ipcMain } from 'electron';
+import { IPC_CHANNELS } from '../../shared/constants/ipcChannels';
+import {
+  ConvertRequest,
+  ConvertResponse,
+  GenerateFontRequest,
+  GenerateFontResponse,
+  PreviewRequest,
+  SubsetRequest,
+  SubsetResponse,
+} from './types';
+import { HttpClientError, getBlob, postJson } from './utils';
 
-type FontOutputFormat = 'ttf' | 'woff2';
-type PreviewType = 'sample' | 'grid' | 'sizes' | 'weights';
-type CapStyle = 'butt' | 'round' | 'square';
-type JoinStyle = 'miter' | 'round' | 'bevel';
-
-export interface FontMetricsInput {
-  upm?: number;
-  ascender?: number;
-  descender?: number;
-  cap_height?: number;
-  x_height?: number;
-  line_gap?: number;
-}
-
-export interface StrokeParams {
-  weight?: number;
-  cap_style?: CapStyle;
-  join_style?: JoinStyle;
-}
-
-export interface GlyphRequest {
-  name: string;
-  unicode?: number;
-  shape?: string;
-  advance_width?: number;
-  lsb?: number;
-  stroke?: StrokeParams;
-}
-
-export interface FontMetadataInput {
-  family_name?: string;
-  style_name?: string;
-  version?: string;
-  copyright?: string;
-  designer?: string;
-  description?: string;
-  url?: string;
-}
-
-export interface GenerateFontRequest {
-  metadata?: FontMetadataInput;
-  metrics?: FontMetricsInput;
-  glyphs: GlyphRequest[];
-  output_format?: FontOutputFormat;
-  include_kerning?: boolean;
-}
-
-export interface GenerateFontResponse {
-  font_id: string;
-  family_name: string;
-  style_name: string;
-  glyph_count: number;
-  output_format: string;
-  file_size_bytes: number;
-  font_face_css: string;
-  data_url: string;
-}
-
-export interface SubsetRequest {
-  font_id?: string;
-  file_b64?: string;
-  text?: string;
-  unicodes?: number[];
-  preset?: 'landing_jp' | 'landing_en';
-  output_format?: FontOutputFormat;
-  hinting?: boolean;
-}
-
-export interface SubsetResponse {
-  font_id: string;
-  original_glyph_count: number;
-  subset_glyph_count: number;
-  original_size_bytes: number;
-  subset_size_bytes: number;
-  reduction_percent: string;
-  font_face_css: string;
-  data_url: string;
-}
-
-export interface ConvertRequest {
-  font_id?: string;
-  file_b64?: string;
-  family_name?: string;
-  style_name?: string;
-  weight?: number;
-  output_format?: FontOutputFormat;
-}
-
-export interface ConvertResponse {
-  font_id: string;
-  family_name: string;
-  style_name: string;
-  weight: number;
-  original_size_bytes: number;
-  converted_size_bytes: number;
-  reduction_percent: string;
-  font_face_css: string;
-  data_url: string;
-}
-
-export interface PreviewRequest {
-  font_id: string;
-  type?: PreviewType;
-  text?: string;
-  width?: number;
-  height?: number;
-  font_size?: number;
-  columns?: number;
-}
-
-const FONT_API_BASE_URL =
-  process.env.FONT_API_BASE_URL ??
-  process.env.WEBFORGE_FONT_API_BASE_URL ??
-  'http://localhost:8000';
-const FONT_API_TIMEOUT_MS = 60_000;
-
-const IPC_CHANNELS = {
-  generate: 'font:generate',
-  subset: 'font:subset',
-  convert: 'font:convert',
-  preview: 'font:preview',
-} as const;
-
-async function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FONT_API_TIMEOUT_MS);
-
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Request timeout after ${FONT_API_TIMEOUT_MS}ms: ${input}`);
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetchWithTimeout(`${FONT_API_BASE_URL}${path}`, init);
-
-  if (!response.ok) {
-    throw await toHttpError(response);
-  }
-
-  return (await response.json()) as T;
-}
-
-function postJson<T>(path: string, body: unknown): Promise<T> {
-  return requestJson<T>(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-function buildPreviewPath(request: PreviewRequest): string {
+function toPreviewPath(request: PreviewRequest): string {
   const { font_id, ...params } = request;
-  const searchParams = new URLSearchParams();
+  const query = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
-      searchParams.set(key, String(value));
+      query.set(key, String(value));
     }
   });
 
-  const query = searchParams.toString();
-  return query ? `/fonts/preview/${font_id}?${query}` : `/fonts/preview/${font_id}`;
+  const queryString = query.toString();
+  return queryString ? `/fonts/preview/${font_id}?${queryString}` : `/fonts/preview/${font_id}`;
 }
 
-async function toHttpError(response: Response): Promise<Error> {
-  let detail = response.statusText;
-  const bodyText = await response.text();
-
-  if (bodyText) {
-    try {
-      const payload = JSON.parse(bodyText) as { detail?: string };
-      detail = payload?.detail || bodyText;
-    } catch {
-      detail = bodyText;
-    }
+function logAndThrow(channel: string, error: unknown): never {
+  if (error instanceof HttpClientError) {
+    console.error(`[font.ipc] ${channel} failed`, {
+      status: error.status,
+      isTimeout: error.isTimeout,
+      isNetworkError: error.isNetworkError,
+      detail: error.detail,
+      message: error.message,
+    });
+    throw error;
   }
 
-  return new Error(`HTTP ${response.status}: ${detail}`);
+  console.error(`[font.ipc] ${channel} unexpected error`, error);
+  throw error;
 }
 
 export function registerFontIpcHandlers(): void {
-  ipcMain.removeHandler(IPC_CHANNELS.generate);
-  ipcMain.handle(IPC_CHANNELS.generate, async (_event, request: GenerateFontRequest) =>
-    postJson<GenerateFontResponse>('/fonts/generate', request),
-  );
+  ipcMain.removeHandler(IPC_CHANNELS.font.generate);
+  ipcMain.removeHandler(IPC_CHANNELS.font.subset);
+  ipcMain.removeHandler(IPC_CHANNELS.font.convert);
+  ipcMain.removeHandler(IPC_CHANNELS.font.preview);
 
-  ipcMain.removeHandler(IPC_CHANNELS.subset);
-  ipcMain.handle(IPC_CHANNELS.subset, async (_event, request: SubsetRequest) =>
-    postJson<SubsetResponse>('/fonts/subset', request),
-  );
-
-  ipcMain.removeHandler(IPC_CHANNELS.convert);
-  ipcMain.handle(IPC_CHANNELS.convert, async (_event, request: ConvertRequest) =>
-    postJson<ConvertResponse>('/fonts/convert', request),
-  );
-
-  ipcMain.removeHandler(IPC_CHANNELS.preview);
-  ipcMain.handle(IPC_CHANNELS.preview, async (_event, request: PreviewRequest) => {
-    const response = await fetchWithTimeout(`${FONT_API_BASE_URL}${buildPreviewPath(request)}`, {
-      method: 'GET',
-    });
-
-    if (!response.ok) {
-      throw await toHttpError(response);
+  // Handles font generation request by forwarding to POST /fonts/generate.
+  ipcMain.handle(IPC_CHANNELS.font.generate, async (_event, request: GenerateFontRequest) => {
+    console.info('[font.ipc] font:generate', { glyph_count: request.glyphs?.length ?? 0 });
+    try {
+      return await postJson<GenerateFontResponse>('/fonts/generate', request);
+    } catch (error) {
+      logAndThrow(IPC_CHANNELS.font.generate, error);
     }
-
-    return response.blob();
   });
+
+  // Handles font subsetting request by forwarding to POST /fonts/subset.
+  ipcMain.handle(IPC_CHANNELS.font.subset, async (_event, request: SubsetRequest) => {
+    console.info('[font.ipc] font:subset', {
+      has_font_id: Boolean(request.font_id),
+      has_file_b64: Boolean(request.file_b64),
+    });
+    try {
+      return await postJson<SubsetResponse>('/fonts/subset', request);
+    } catch (error) {
+      logAndThrow(IPC_CHANNELS.font.subset, error);
+    }
+  });
+
+  // Handles font conversion request by forwarding to POST /fonts/convert.
+  ipcMain.handle(IPC_CHANNELS.font.convert, async (_event, request: ConvertRequest) => {
+    console.info('[font.ipc] font:convert', {
+      has_font_id: Boolean(request.font_id),
+      family_name: request.family_name,
+    });
+    try {
+      return await postJson<ConvertResponse>('/fonts/convert', request);
+    } catch (error) {
+      logAndThrow(IPC_CHANNELS.font.convert, error);
+    }
+  });
+
+  // Handles font preview request by forwarding to GET /fonts/preview/{id}.
+  ipcMain.handle(IPC_CHANNELS.font.preview, async (_event, request: PreviewRequest) => {
+    console.info('[font.ipc] font:preview', { font_id: request.font_id, type: request.type });
+    try {
+      return await getBlob(toPreviewPath(request));
+    } catch (error) {
+      logAndThrow(IPC_CHANNELS.font.preview, error);
+    }
+  });
+
+  console.info('[font.ipc] registered font IPC handlers');
 }
