@@ -45,6 +45,8 @@ app.on('ready', () => {
     console.info('[main] Font IPC initialized', { backendUrl });
   } catch (error) {
     console.error('[main] Failed to initialize Font IPC', error);
+    app.quit();
+    return;
   }
 
   createWindow();
