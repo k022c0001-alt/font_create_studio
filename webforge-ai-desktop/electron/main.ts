@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import isDev from 'electron-is-dev';
+import { registerFontIpcHandlers } from './ipc/font.ipc';
+import { initHttpClient } from './ipc/utils';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -34,7 +36,21 @@ function createWindow() {
   });
 }
 
-app.on('ready', createWindow);
+app.on('ready', () => {
+  const backendUrl = process.env.FONT_API_BASE_URL || process.env.WEBFORGE_FONT_API_BASE_URL || 'http://localhost:8000';
+
+  try {
+    initHttpClient({ baseUrl: backendUrl, timeoutMs: 30_000, retries: 2 });
+    registerFontIpcHandlers();
+    console.info('[main] Font IPC initialized', { backendUrl });
+  } catch (error) {
+    console.error('[main] Failed to initialize Font IPC', error);
+    app.quit();
+    return;
+  }
+
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
