@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
 import Dashboard from './pages/Dashboard';
+import FontStudio from './pages/FontStudio';
 import './styles/global.css';
 
 const App: React.FC = () => {
@@ -10,7 +11,7 @@ const App: React.FC = () => {
       <AppShell>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          {/* 他のルート (Builder, FontStudio, ChatDesigner など) はここに追加 */}
+          <Route path="/font-studio" element={<FontStudio />} />
         </Routes>
       </AppShell>
     </Router>

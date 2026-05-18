@@ -27,6 +27,9 @@ export interface GlyphRequest {
   stroke?: StrokeParams;
 }
 
+export type FontMetrics = FontMetricsInput;
+export type GlyphDefinition = GlyphRequest;
+
 export interface FontMetadataInput {
   family_name?: string;
   style_name?: string;
