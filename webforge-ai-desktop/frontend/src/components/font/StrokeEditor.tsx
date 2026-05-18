@@ -16,6 +16,8 @@ const JOIN_STYLES: Array<{ value: JoinStyle; label: string }> = [
   { value: 'round', label: 'Round' },
   { value: 'miter', label: 'Miter' },
 ];
+const PREVIEW_STROKE_DIVISOR = 14;
+const MIN_PREVIEW_STROKE_WIDTH = 2;
 
 /** Stroke editor for weight/cap/join with inline SVG feedback. */
 export function StrokeEditor({ stroke, onChange }: StrokeEditorProps) {
@@ -79,14 +81,14 @@ export function StrokeEditor({ stroke, onChange }: StrokeEditorProps) {
             x2={195}
             y2={30}
             stroke="#1d4ed8"
-            strokeWidth={Math.max(2, current.weight / 14)}
+            strokeWidth={Math.max(MIN_PREVIEW_STROKE_WIDTH, current.weight / PREVIEW_STROKE_DIVISOR)}
             strokeLinecap={current.cap_style}
           />
           <polyline
             points="30,75 110,45 190,75"
             fill="none"
             stroke="#0f766e"
-            strokeWidth={Math.max(2, current.weight / 14)}
+            strokeWidth={Math.max(MIN_PREVIEW_STROKE_WIDTH, current.weight / PREVIEW_STROKE_DIVISOR)}
             strokeLinejoin={current.join_style}
             strokeLinecap="round"
           />

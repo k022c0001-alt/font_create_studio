@@ -6,6 +6,10 @@ export interface GlyphEditorProps {
 }
 
 const SHAPE_OPTIONS = ['preset:O', 'preset:I', 'rect', 'circle', 'stroke'] as const;
+const DEFAULT_SHAPE: (typeof SHAPE_OPTIONS)[number] = 'preset:O';
+const MAX_UNICODE_CODEPOINT = 0x10ffff;
+const DEFAULT_UNICODE_START = 65;
+const DEFAULT_UNICODE_RANGE = 26;
 
 function parseOptionalNumber(rawValue: string): number | undefined {
   if (rawValue.trim() === '') {
@@ -30,8 +34,8 @@ export function GlyphEditor({ glyphs, onChange }: GlyphEditorProps) {
       ...glyphs,
       {
         name: `glyph-${glyphs.length + 1}`,
-        unicode: 65 + glyphs.length,
-        shape: 'preset:O',
+        unicode: DEFAULT_UNICODE_START + (glyphs.length % DEFAULT_UNICODE_RANGE),
+        shape: DEFAULT_SHAPE,
         advance_width: 600,
         lsb: 0,
       },
@@ -77,7 +81,7 @@ export function GlyphEditor({ glyphs, onChange }: GlyphEditorProps) {
                 <input
                   type="number"
                   min={0}
-                  max={0x10ffff}
+                  max={MAX_UNICODE_CODEPOINT}
                   value={glyph.unicode ?? ''}
                   className="w-full rounded border border-slate-300 px-3 py-2"
                   onChange={(event) => updateGlyph(index, { unicode: parseOptionalNumber(event.target.value) })}
@@ -87,7 +91,7 @@ export function GlyphEditor({ glyphs, onChange }: GlyphEditorProps) {
               <label className="text-sm text-slate-700">
                 <span className="mb-1 block font-medium">shape</span>
                 <select
-                  value={glyph.shape ?? 'preset:O'}
+                  value={glyph.shape ?? DEFAULT_SHAPE}
                   className="w-full rounded border border-slate-300 px-3 py-2"
                   onChange={(event) => updateGlyph(index, { shape: event.target.value })}
                 >

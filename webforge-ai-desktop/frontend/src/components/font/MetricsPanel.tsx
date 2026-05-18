@@ -5,7 +5,7 @@ export interface MetricsPanelProps {
   onChange: (metrics: FontMetrics) => void;
 }
 
-const LATIN_PRESET: FontMetrics = {
+const LATIN_PRESET: Required<FontMetrics> = {
   upm: 1000,
   ascender: 800,
   descender: -200,
@@ -14,7 +14,7 @@ const LATIN_PRESET: FontMetrics = {
   line_gap: 0,
 };
 
-const CJK_PRESET: FontMetrics = {
+const CJK_PRESET: Required<FontMetrics> = {
   upm: 1000,
   ascender: 880,
   descender: -120,
@@ -32,12 +32,12 @@ const SLIDER_FIELDS: Array<{ key: keyof FontMetrics; label: string; min: number;
 ];
 
 function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+  return Math.max(min, Math.min(max, value));
 }
 
 /** Font metrics editor with presets and live metric preview. */
 export function MetricsPanel({ metrics, onChange }: MetricsPanelProps) {
-  const current = {
+  const current: Required<FontMetrics> = {
     upm: metrics.upm ?? LATIN_PRESET.upm,
     ascender: metrics.ascender ?? LATIN_PRESET.ascender,
     descender: metrics.descender ?? LATIN_PRESET.descender,
@@ -45,6 +45,7 @@ export function MetricsPanel({ metrics, onChange }: MetricsPanelProps) {
     x_height: metrics.x_height ?? LATIN_PRESET.x_height,
     line_gap: metrics.line_gap ?? LATIN_PRESET.line_gap,
   };
+  const capHeightRatioPercent = Math.min(100, Math.max(0, (current.cap_height / current.upm) * 100));
 
   const update = (key: keyof FontMetrics, raw: string, min?: number, max?: number) => {
     const parsed = Number(raw);
@@ -99,11 +100,14 @@ export function MetricsPanel({ metrics, onChange }: MetricsPanelProps) {
       ))}
 
       <div className="rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-        <div>Preview ratio: asc {current.ascender} / desc {Math.abs(current.descender)} / cap {current.cap_height}</div>
+        <div>
+          Metrics overview: ascender {current.ascender} / descender {Math.abs(current.descender)} / cap height{' '}
+          {current.cap_height}
+        </div>
         <div className="mt-2 h-2 w-full overflow-hidden rounded bg-slate-200">
           <div
             className="h-full bg-blue-500"
-            style={{ width: `${Math.min(100, Math.max(0, (current.cap_height / current.upm) * 100))}%` }}
+            style={{ width: `${capHeightRatioPercent}%` }}
           />
         </div>
       </div>

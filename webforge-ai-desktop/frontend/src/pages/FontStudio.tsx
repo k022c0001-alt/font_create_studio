@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import GlyphEditor from '../components/font/GlyphEditor';
 import MetricsPanel from '../components/font/MetricsPanel';
@@ -7,6 +7,10 @@ import Spinner from '../components/common/Spinner';
 import Toast from '../components/common/Toast';
 import { useFont } from '../hooks/useFont';
 import { useFontStore } from '../store';
+
+const PREVIEW_FONT_SIZE_DIVISOR = 3;
+const DEFAULT_PREVIEW_STROKE_WEIGHT = 80;
+const MIN_PREVIEW_FONT_SIZE = 14;
 
 /** Main font creation workspace integrating metrics, stroke, glyph, preview and export actions. */
 export default function FontStudio() {
@@ -29,8 +33,12 @@ export default function FontStudio() {
   const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' } | null>(null);
 
   const previewGlyphNames = useMemo(() => glyphs.map((glyph) => glyph.name || '?').join(' '), [glyphs]);
+  const previewFontSize = Math.max(
+    MIN_PREVIEW_FONT_SIZE,
+    (stroke.weight ?? DEFAULT_PREVIEW_STROKE_WEIGHT) / PREVIEW_FONT_SIZE_DIVISOR,
+  );
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     try {
       const response = await generate({
         metadata,
@@ -43,7 +51,7 @@ export default function FontStudio() {
     } catch {
       setToast({ message: 'Failed to generate font', variant: 'error' });
     }
-  };
+  }, [generate, glyphs, metadata, metrics, setGeneratedFontId, stroke]);
 
   const handlePreview = async () => {
     if (!generatedFontId) {
@@ -81,7 +89,7 @@ export default function FontStudio() {
         style_name: metadata.style_name,
         output_format: 'woff2',
       });
-      setToast({ message: 'TTF/WOFF2 export completed', variant: 'success' });
+      setToast({ message: 'WOFF2 export completed', variant: 'success' });
     } catch {
       setToast({ message: 'Failed to export font', variant: 'error' });
     }
@@ -97,7 +105,7 @@ export default function FontStudio() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  });
+  }, [handleGenerate]);
 
   useEffect(
     () => () => {
@@ -158,11 +166,18 @@ export default function FontStudio() {
           {previewUrl ? (
             <img src={previewUrl} alt="Font preview" className="w-full rounded border border-slate-200" />
           ) : (
-            <div className="rounded border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-              <div className="mb-2">Real-time text preview</div>
-              <div style={{ fontSize: `${Math.max(14, (stroke.weight ?? 80) / 3)}px`, lineHeight: 1.4 }}>{previewGlyphNames || 'Abc'}</div>
-            </div>
-          )}
+              <div className="rounded border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+                <div className="mb-2">Real-time text preview</div>
+                <div
+                  style={{
+                    fontSize: `${previewFontSize}px`,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {previewGlyphNames || 'Abc'}
+                </div>
+              </div>
+            )}
 
           <div className="space-y-2">
             <button
