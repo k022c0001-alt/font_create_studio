@@ -6,9 +6,11 @@
   "main": "electron/main.ts",
   "scripts": {
     "dev": "node scripts/start-all.js",
-    "dev:frontend": "vite --config frontend/vite.config.ts",
+    "dev:frontend": "vite --config vite.config.ts",
     "dev:electron": "wait-on http://localhost:5180 && electron .",
     "dev:python": "cd python_backend && python main.py",
+    "build": "tsc && vite build --config vite.config.ts",
+    "preview": "vite preview --config vite.config.ts",
     "type-check": "tsc --noEmit",
     "test:backend": "cd .. && python3 -m pytest design-to-code-studio/tests"
   },
