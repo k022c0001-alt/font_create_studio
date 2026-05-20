@@ -1,14 +1,16 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
-import { registerDesignIpcHandlers } from './ipc/design.ipc';
-import { registerCodeGenIpcHandlers } from './ipc/code-gen.ipc';
+import { registerIpcHandlers } from './ipc/index';
+import { isDev } from './utils/isDev';
 
 let mainWindow: BrowserWindow | null = null;
 
-function createWindow(): void {
+async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 900,
+    minWidth: 1100,
+    minHeight: 760,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -16,14 +18,24 @@ function createWindow(): void {
     },
   });
 
-  const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5180';
-  mainWindow.loadURL(devUrl);
+  if (isDev) {
+    const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5180';
+    await mainWindow.loadURL(devUrl);
+    return;
+  }
+
+  await mainWindow.loadFile(path.join(__dirname, '../dist/frontend/index.html'));
 }
 
-app.whenReady().then(() => {
-  registerDesignIpcHandlers();
-  registerCodeGenIpcHandlers();
-  createWindow();
+app.whenReady().then(async () => {
+  registerIpcHandlers();
+  await createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      void createWindow();
+    }
+  });
 });
 
 app.on('window-all-closed', () => {

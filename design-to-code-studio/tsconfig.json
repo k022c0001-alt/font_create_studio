@@ -8,7 +8,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": ["node"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "baseUrl": "."
   },
-  "include": ["electron/**/*.ts", "frontend/src/**/*", "shared/**/*.ts", "frontend/vite.config.ts"]
+  "include": ["electron/**/*.ts", "frontend/src/**/*", "shared/**/*.ts", "vite.config.ts"]
 }

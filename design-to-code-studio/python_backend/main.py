@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from python_backend.api.routes_design import router as design_router
+from python_backend.api import design_router, projects_router
 
 
 app = FastAPI(title='Design-to-Code Studio Backend')
@@ -19,6 +19,7 @@ app.add_middleware(
     allow_headers=['*'],
 )
 app.include_router(design_router)
+app.include_router(projects_router)
 
 
 @app.get('/health')
