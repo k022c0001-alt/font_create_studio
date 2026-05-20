@@ -1,0 +1,16 @@
+.converter-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.converter-page__intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.converter-page__intro h1,
+.converter-page__intro p {
+  margin: 0;
+}

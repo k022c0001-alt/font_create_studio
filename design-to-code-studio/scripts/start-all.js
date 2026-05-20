@@ -17,7 +17,7 @@ function run(command, args, cwd, shell = false) {
 }
 
 const py = run('python', ['main.py'], path.join(root, 'python_backend'));
-const vite = run('npx', ['vite', '--config', 'frontend/vite.config.ts'], root);
+const vite = run('npx', ['vite', '--config', 'vite.config.ts'], root);
 const electron = run('npx wait-on http://localhost:5180 && npx electron .', [], root, true);
 
 process.on('SIGINT', () => {

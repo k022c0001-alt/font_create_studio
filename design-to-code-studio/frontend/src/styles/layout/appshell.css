@@ -1,0 +1,18 @@
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.app-shell__body {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.app-shell__content {
+  padding: 1.5rem;
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
