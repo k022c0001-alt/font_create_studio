@@ -1,0 +1,108 @@
+/* Component-level shared styles */
+@import './tokens.css';
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: background-color var(--transition-fast);
+}
+
+.btn--primary {
+  background-color: var(--color-primary);
+  color: #fff;
+}
+
+.btn--primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.btn--secondary {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btn--ghost {
+  background-color: transparent;
+  color: var(--color-text);
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  min-width: 400px;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Toast */
+.toast {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: #fff;
+}
+
+.toast--info    { background: var(--color-secondary); }
+.toast--success { background: var(--color-success); }
+.toast--warning { background: var(--color-warning); }
+.toast--error   { background: var(--color-error); }
+
+/* Spinner */
+.spinner {
+  border: 3px solid var(--color-bg-elevated);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Color picker */
+.color-picker {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* File drop zone */
+.file-drop-zone {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--color-text-muted);
+  position: relative;
+  cursor: pointer;
+}
+
+.file-drop-zone__input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
