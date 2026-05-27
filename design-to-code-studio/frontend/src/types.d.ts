@@ -1,6 +1,12 @@
 /// <reference types="vite/client" />
 
 import type { AnalyzeResponse, GenerateCodeResponse, UploadResponse } from '../../../shared/types/design';
+import type {
+  FontConvertRequest,
+  FontConvertResponse,
+  FontGenerateRequest,
+  FontGenerateResponse,
+} from '../../../shared/types/font';
 import type { CreateProjectInput, ProjectRecord, UpdateProjectInput } from '../../../shared/types/project';
 
 declare global {
@@ -15,6 +21,8 @@ declare global {
       createProject?: (input: CreateProjectInput) => Promise<ProjectRecord>;
       updateProject?: (projectId: string, input: UpdateProjectInput) => Promise<ProjectRecord>;
       deleteProject?: (projectId: string) => Promise<void>;
+      generateFont?: (request: FontGenerateRequest) => Promise<FontGenerateResponse>;
+      convertFont?: (request: FontConvertRequest) => Promise<FontConvertResponse>;
     };
   }
 }

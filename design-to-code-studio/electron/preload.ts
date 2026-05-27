@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { CreateProjectInput, UpdateProjectInput } from '../shared/types/project';
+import type { FontConvertRequest, FontGenerateRequest } from '../shared/types/font';
 import { IPC_CHANNELS } from '../shared/constants/ipcChannels';
 
 contextBridge.exposeInMainWorld('designAPI', {
@@ -23,4 +24,6 @@ contextBridge.exposeInMainWorld('designAPI', {
   updateProject: (projectId: string, input: UpdateProjectInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.projects.update, { projectId, input }),
   deleteProject: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.projects.delete, projectId),
+  generateFont: (input: FontGenerateRequest) => ipcRenderer.invoke(IPC_CHANNELS.font.generate, input),
+  convertFont: (input: FontConvertRequest) => ipcRenderer.invoke(IPC_CHANNELS.font.convert, input),
 });

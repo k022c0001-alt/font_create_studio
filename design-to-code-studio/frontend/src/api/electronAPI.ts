@@ -1,7 +1,14 @@
 import type { AnalyzeResponse, GenerateCodeResponse, UploadResponse } from '../../../shared/types/design';
+import type {
+  FontConvertRequest,
+  FontConvertResponse,
+  FontGenerateRequest,
+  FontGenerateResponse,
+} from '../../../shared/types/font';
 import type { CreateProjectInput, ProjectRecord, UpdateProjectInput } from '../../../shared/types/project';
 
 const API_BASE_URL = import.meta.env.VITE_DESIGN_API_BASE_URL || 'http://localhost:8010';
+const FONT_API_BASE_URL = import.meta.env.VITE_FONT_API_BASE_URL || 'http://localhost:8000';
 
 async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, init);
@@ -69,6 +76,28 @@ export const electronAPI = {
     downloadTextFile(`${name}.tsx`, jsx);
     downloadTextFile(`${name}.css`, css);
     return { path: 'browser-download' };
+  },
+  generateFont: (request: FontGenerateRequest): Promise<FontGenerateResponse> => {
+    if (window.designAPI?.generateFont) {
+      return window.designAPI.generateFont(request);
+    }
+    return requestJson<FontGenerateResponse>(`${FONT_API_BASE_URL}/fonts/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+  },
+  convertFont: (request: FontConvertRequest): Promise<FontConvertResponse> => {
+    if (window.designAPI?.convertFont) {
+      return window.designAPI.convertFont(request);
+    }
+    return requestJson<FontConvertResponse>(`${FONT_API_BASE_URL}/fonts/convert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        font_id: request.fontId,
+      }),
+    });
   },
   projects: {
     list: (): Promise<ProjectRecord[]> => {
