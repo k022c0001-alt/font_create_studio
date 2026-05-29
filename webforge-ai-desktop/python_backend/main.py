@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from python_backend.api.routes_font_export import router as font_export_router
+from python_backend.api.routes_font_analytics import router as font_analytics_router
 from python_backend.api.routes_font_generator import router as font_generator_router
 from python_backend.api.routes_font_import import router as font_import_router
 
@@ -33,6 +34,7 @@ app.add_middleware(
 
 app.include_router(font_export_router, prefix="/api")
 app.include_router(font_import_router, prefix="/api")
+app.include_router(font_analytics_router, prefix="/api")
 app.include_router(font_generator_router)
 
 
