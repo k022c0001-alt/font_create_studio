@@ -7,7 +7,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from python_backend.main import app
 
-
 client = TestClient(app)
 
 
@@ -59,7 +58,43 @@ def test_metrics_analysis_returns_404_when_font_not_found():
 
 
 def test_font_analytics_endpoints_are_in_openapi():
+    # app.openapi() caches schema; clear it to avoid test-order dependency.
+    app.openapi_schema = None
     paths = app.openapi()["paths"]
 
     assert "/api/fonts/{font_id}/metrics-analysis" in paths
     assert "/api/fonts/recommend-typography" in paths
+    assert "/api/fonts/cache-stats" in paths
+    assert "/api/fonts/clear-cache" in paths
+
+
+def test_metrics_analysis_uses_cache_and_stats_endpoint():
+    font_id = _generate_font_id()
+    baseline_stats = client.get("/api/fonts/cache-stats")
+    assert baseline_stats.status_code == 200, baseline_stats.text
+    baseline_body = baseline_stats.json()
+
+    first = client.get(f"/api/fonts/{font_id}/metrics-analysis")
+    second = client.get(f"/api/fonts/{font_id}/metrics-analysis")
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+
+    stats = client.get("/api/fonts/cache-stats")
+    assert stats.status_code == 200, stats.text
+    body = stats.json()
+    assert "hit_rate" in body
+    assert "layer_hits" in body
+    assert body["layer_hits"]["compute"] == baseline_body["layer_hits"]["compute"] + 1
+    assert body["layer_hits"]["memory"] >= baseline_body["layer_hits"]["memory"] + 1
+
+
+def test_clear_cache_endpoint_clears_font_entry():
+    font_id = _generate_font_id()
+    before = client.get(f"/api/fonts/{font_id}/metrics-analysis")
+    assert before.status_code == 200, before.text
+
+    cleared = client.post("/api/fonts/clear-cache", params={"font_id": font_id})
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["status"] == "cleared"
+    assert cleared.json()["deleted"] is True
