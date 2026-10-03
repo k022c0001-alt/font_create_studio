@@ -7,6 +7,14 @@ import type {
   FontGenerateRequest,
   FontGenerateResponse,
 } from '../../../shared/types/font';
+import type {
+  FontapplyGetGlyphResponse,
+  FontapplyGlyphListResponse,
+  FontapplyGlyphMetrics,
+  FontapplyGlyphRequest,
+  FontapplyHealthResponse,
+  FontapplySaveGlyphRequest,
+} from '../../../shared/types/fontapply';
 import type { CreateProjectInput, ProjectRecord, UpdateProjectInput } from '../../../shared/types/project';
 
 declare global {
@@ -23,6 +31,11 @@ declare global {
       deleteProject?: (projectId: string) => Promise<void>;
       generateFont?: (request: FontGenerateRequest) => Promise<FontGenerateResponse>;
       convertFont?: (request: FontConvertRequest) => Promise<FontConvertResponse>;
+      fontapplyHealth?: () => Promise<FontapplyHealthResponse>;
+      listFontapplyGlyphs?: () => Promise<FontapplyGlyphListResponse>;
+      getFontapplyGlyph?: (request: FontapplyGlyphRequest) => Promise<FontapplyGetGlyphResponse>;
+      getFontapplyMetrics?: (unicode: string) => Promise<FontapplyGlyphMetrics>;
+      saveFontapplyGlyph?: (request: FontapplySaveGlyphRequest) => Promise<FontapplyGetGlyphResponse>;
     };
   }
 }

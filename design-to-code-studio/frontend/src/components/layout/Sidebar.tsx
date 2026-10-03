@@ -15,6 +15,9 @@ export function Sidebar() {
         <NavLink className="sidebar__link" to="/converter">
           変換ワークスペース
         </NavLink>
+        <NavLink className="sidebar__link" to="/font-studio">
+          Font Studio
+        </NavLink>
       </nav>
 
       <div className="sidebar__footer">

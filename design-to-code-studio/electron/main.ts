@@ -29,7 +29,7 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  const fontApiBaseUrl = process.env.FONT_API_BASE_URL || process.env.DESIGN_FONT_API_BASE_URL || 'http://localhost:8000';
+  const fontApiBaseUrl = process.env.FONT_API_BASE_URL || process.env.DESIGN_FONT_API_BASE_URL || 'http://127.0.0.1:8000';
   const timeoutMs = Number(process.env.FONT_API_TIMEOUT_MS ?? 30_000);
   const retries = Number(process.env.FONT_API_RETRIES ?? 2);
   const normalizedTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 30_000;

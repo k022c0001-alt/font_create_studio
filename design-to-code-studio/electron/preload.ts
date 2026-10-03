@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { CreateProjectInput, UpdateProjectInput } from '../shared/types/project';
 import type { FontConvertRequest, FontGenerateRequest } from '../shared/types/font';
+import type { FontapplyGlyphRequest, FontapplySaveGlyphRequest } from '../shared/types/fontapply';
 import { IPC_CHANNELS } from '../shared/constants/ipcChannels';
 
 contextBridge.exposeInMainWorld('designAPI', {
@@ -26,4 +27,9 @@ contextBridge.exposeInMainWorld('designAPI', {
   deleteProject: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.projects.delete, projectId),
   generateFont: (input: FontGenerateRequest) => ipcRenderer.invoke(IPC_CHANNELS.font.generate, input),
   convertFont: (input: FontConvertRequest) => ipcRenderer.invoke(IPC_CHANNELS.font.convert, input),
+  fontapplyHealth: () => ipcRenderer.invoke(IPC_CHANNELS.fontapply.health),
+  listFontapplyGlyphs: () => ipcRenderer.invoke(IPC_CHANNELS.fontapply.listGlyphs),
+  getFontapplyGlyph: (request: FontapplyGlyphRequest) => ipcRenderer.invoke(IPC_CHANNELS.fontapply.getGlyph, request),
+  getFontapplyMetrics: (unicode: string) => ipcRenderer.invoke(IPC_CHANNELS.fontapply.getMetrics, { unicode }),
+  saveFontapplyGlyph: (request: FontapplySaveGlyphRequest) => ipcRenderer.invoke(IPC_CHANNELS.fontapply.saveGlyph, request),
 });

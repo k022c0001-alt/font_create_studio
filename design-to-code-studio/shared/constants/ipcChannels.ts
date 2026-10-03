@@ -21,6 +21,13 @@ export const IPC_CHANNELS = {
     subset: 'font:subset',
     delete: 'font:delete',
   },
+  fontapply: {
+    health: 'fontapply:health',
+    listGlyphs: 'fontapply:list-glyphs',
+    getGlyph: 'fontapply:get-glyph',
+    getMetrics: 'fontapply:get-metrics',
+    saveGlyph: 'fontapply:save-glyph',
+  },
   ai: {
     chat: 'ai:chat',
     chatStream: 'ai:chat-stream',

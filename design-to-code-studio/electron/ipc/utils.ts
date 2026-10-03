@@ -30,7 +30,7 @@ interface HttpClientConfig {
 }
 
 const DEFAULT_HTTP_CONFIG: HttpClientConfig = {
-  baseUrl: 'http://localhost:8000',
+  baseUrl: 'http://127.0.0.1:8000',
   timeoutMs: 30_000,
   retries: 2,
 };
@@ -122,9 +122,31 @@ async function request(path: string, init: RequestInit): Promise<Response> {
   }
 }
 
+
+export async function getJson<TResponse>(path: string): Promise<TResponse> {
+  const response = await request(path, {
+    method: 'GET',
+  });
+
+  return (await response.json()) as TResponse;
+}
+
 export async function postJson<TResponse>(path: string, body: unknown): Promise<TResponse> {
   const response = await request(path, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  return (await response.json()) as TResponse;
+}
+
+
+export async function putJson<TResponse>(path: string, body: unknown): Promise<TResponse> {
+  const response = await request(path, {
+    method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
     },
