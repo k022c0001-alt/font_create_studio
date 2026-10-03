@@ -5,15 +5,25 @@ import type {
   FontGenerateRequest,
   FontGenerateResponse,
 } from '../../../shared/types/font';
+import type {
+  FontapplyGetGlyphResponse,
+  FontapplyGlyphListResponse,
+  FontapplyGlyphMetrics,
+  FontapplyGlyphRequest,
+  FontapplyHealthResponse,
+  FontapplySaveGlyphRequest,
+} from '../../../shared/types/fontapply';
 import type { CreateProjectInput, ProjectRecord, UpdateProjectInput } from '../../../shared/types/project';
+import { createFontapplyClient } from './fontapplyClient';
 
 const API_BASE_URL = import.meta.env.VITE_DESIGN_API_BASE_URL || 'http://localhost:8010';
-const FONT_API_BASE_URL = import.meta.env.VITE_FONT_API_BASE_URL || 'http://localhost:8000';
+const FONT_API_BASE_URL = import.meta.env.VITE_FONT_API_BASE_URL || 'http://127.0.0.1:8000';
+const fontapplyClient = createFontapplyClient({ baseUrl: FONT_API_BASE_URL });
 
 async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
-    throw new Error(await response.text() || `HTTP ${response.status}`);
+    throw new Error((await response.text()) || `HTTP ${response.status}`);
   }
 
   if (response.status === 204) {
@@ -98,6 +108,38 @@ export const electronAPI = {
         font_id: request.fontId,
       }),
     });
+  },
+  fontapply: {
+    health: (): Promise<FontapplyHealthResponse> => {
+      if (window.designAPI?.fontapplyHealth) {
+        return window.designAPI.fontapplyHealth();
+      }
+      return fontapplyClient.health();
+    },
+    supportedGlyphs: (): Promise<FontapplyGlyphListResponse> => {
+      if (window.designAPI?.listFontapplyGlyphs) {
+        return window.designAPI.listFontapplyGlyphs();
+      }
+      return fontapplyClient.supportedGlyphs();
+    },
+    getGlyph: (request: FontapplyGlyphRequest): Promise<FontapplyGetGlyphResponse> => {
+      if (window.designAPI?.getFontapplyGlyph) {
+        return window.designAPI.getFontapplyGlyph(request);
+      }
+      return fontapplyClient.getGlyph(request);
+    },
+    getMetrics: (unicode: string): Promise<FontapplyGlyphMetrics> => {
+      if (window.designAPI?.getFontapplyMetrics) {
+        return window.designAPI.getFontapplyMetrics(unicode);
+      }
+      return fontapplyClient.getMetrics({ unicode });
+    },
+    saveGlyph: (request: FontapplySaveGlyphRequest): Promise<FontapplyGetGlyphResponse> => {
+      if (window.designAPI?.saveFontapplyGlyph) {
+        return window.designAPI.saveFontapplyGlyph(request);
+      }
+      return fontapplyClient.saveGlyph(request);
+    },
   },
   projects: {
     list: (): Promise<ProjectRecord[]> => {

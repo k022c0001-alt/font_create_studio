@@ -12,7 +12,8 @@
     "build": "tsc && vite build --config vite.config.ts",
     "preview": "vite preview --config vite.config.ts",
     "type-check": "tsc --noEmit",
-    "test:backend": "cd .. && python3 -m pytest design-to-code-studio/tests"
+    "test:backend": "cd .. && python3 -m pytest design-to-code-studio/tests",
+    "test:fontapply": "node --test --experimental-strip-types frontend/src/api/*.test.mjs"
   },
   "dependencies": {
     "react": "^18.2.0",
